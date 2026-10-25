@@ -1,483 +1,60 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#eef2f8">
-<meta name="mobile-web-app-capable" content="yes">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f6f7fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17191d" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Habit Tracker v1.1">
+<title>Rustam's Habit Tracker v1.1</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="flagship.css">
+<link rel="stylesheet" href="buttons.css">
+<link rel="stylesheet" href="habit.css">
+<script>
+/* First frame is already the right theme: read the saved look and the phone's mode before anything is drawn. */
+(function () { try {
+  var p = JSON.parse(localStorage.getItem('ht_v1') || '{}'), H = document.documentElement;
+  var dark = p.follow === false ? p.look === 'flagshipd' : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  H.setAttribute('data-scheme', dark ? 'dark' : 'light');
+  H.setAttribute('data-look', dark ? 'flagshipd' : 'flagship');
+  H.setAttribute('data-acc', p.accent === 'gold' ? 'gold' : 'sapphire');
+  H.setAttribute('data-fl', p.flFont || 'system');
+} catch (e) {} })();
+</script>
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<title>Rustam's Habit Tracker</title>
-<style>
-:root{
-  --bg1:#f4f7fc;--bg2:#e6edf8;--ink:#14202e;--ink2:#5a6a7e;--line:rgba(20,40,70,.12);
-  --glass:rgba(255,255,255,.58);--glass2:rgba(255,255,255,.4);--shadow:0 10px 30px rgba(40,70,120,.12);
-  --acc1:#5c9fe6;--acc2:#3560bd;--good:#2fa36b;--bad:#d9534f;--warn:#c9a43a;
-  --r:26px;--btn-shadow:0 3px 3px rgba(20,40,80,.16);
-}
-:root[data-mode=dark]{
-  --bg1:#14171c;--bg2:#1b2027;--ink:#eef1f5;--ink2:#9aa6b6;--line:rgba(255,255,255,.12);
-  --glass:rgba(60,68,80,.5);--glass2:rgba(60,68,80,.34);--shadow:0 10px 30px rgba(0,0,0,.35);
-  --good:#4cc38a;--bad:#ef7773;--btn-shadow:0 3px 3px rgba(0,0,0,.4);
-}
-:root[data-accent=gold]{--acc1:#f3d36e;--acc2:#c9a43a}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%}
-body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);
-  background:linear-gradient(160deg,var(--bg1),var(--bg2));overflow:hidden;font-weight:400;letter-spacing:.1px}
-.blobs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.blobs i{position:absolute;border-radius:50%;filter:blur(60px);opacity:.45;background:radial-gradient(circle,var(--acc1),transparent 70%)}
-.blobs i:nth-child(1){width:320px;height:320px;left:-80px;top:-60px}
-.blobs i:nth-child(2){width:280px;height:280px;right:-90px;top:42%;opacity:.3}
-#app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
-header{padding:calc(env(safe-area-inset-top) + 14px) 20px 6px;display:flex;align-items:flex-start;justify-content:space-between}
-h1{font-size:26px;font-weight:300;margin:0;line-height:1.15}
-.ver{font-size:12px;color:var(--ink2);margin-top:3px}
-main{flex:1;overflow-y:auto;padding:8px 16px 110px;-webkit-overflow-scrolling:touch}
-.card{background:var(--glass);backdrop-filter:blur(22px) saturate(1.3);-webkit-backdrop-filter:blur(22px) saturate(1.3);
-  border:1px solid var(--line);border-radius:var(--r);padding:18px;margin:12px 0;box-shadow:var(--shadow)}
-.card h2{font-size:13px;font-weight:500;color:var(--ink2);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px}
-.big{font-size:56px;font-weight:200;line-height:1}
-.small{font-size:13px;color:var(--ink2)}
-.row{display:flex;align-items:center;gap:12px}
-.sp{justify-content:space-between}
-.grow{flex:1}
-.btn{height:40px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--glass);color:var(--ink);font:inherit;font-size:15px;
-  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.65),inset 0 -6px 9px -3px rgba(255,255,255,.4),var(--btn-shadow);transition:transform .25s ease,opacity .25s}
-.btn:active{transform:scale(.97)}
-.btn.primary{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;font-weight:600;border-color:transparent}
-:root[data-accent=gold] .btn.primary{color:#3a2c00}
-.btn.out{background:transparent;box-shadow:none}
-.btn.sm{height:28px;padding:0 12px;font-size:13px}
-.btn.big2{height:64px;font-size:18px;flex:1;border-radius:32px}
-.btn.good{background:linear-gradient(135deg,#46c58a,#2a9163);color:#fff;font-weight:600;border-color:transparent}
-.btn.round{width:32px;height:32px;padding:0;border-radius:50%}
-.btn.del{color:var(--bad)}
-.btn svg,.ic{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;padding:0 16px calc(env(safe-area-inset-bottom) + 12px)}
-nav div{display:flex;gap:4px;padding:6px;border-radius:999px;background:var(--glass);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--line);box-shadow:var(--shadow);width:100%;max-width:400px}
-nav button{flex:1;height:44px;border:0;border-radius:999px;background:transparent;color:var(--ink2);font:inherit;font-size:14px;cursor:pointer;transition:all .4s ease}
-nav button.on{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff}
-:root[data-accent=gold] nav button.on{color:#3a2c00}
-.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;background:var(--glass2)}
-.chips{display:flex;gap:8px;flex-wrap:wrap}
-.ring{position:relative;width:132px;height:132px;flex:none}
-.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
-.ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
-.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--acc1),var(--acc2));transition:width 1s ease}
-.bar.g i{background:linear-gradient(90deg,#46c58a,#2a9163)}
-.bar.r i{background:linear-gradient(90deg,#f09a97,#d9534f)}
-.seg{display:flex;gap:4px;padding:4px;border-radius:999px;border:1px solid var(--line);background:var(--glass2);width:max-content}
-.seg button{height:32px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:var(--ink2);font:inherit;cursor:pointer;transition:all .4s}
-.seg button.on{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff}
-.wk{display:flex;align-items:stretch;gap:8px;height:130px}
-.wk div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;font-size:11px;color:var(--ink2)}
-.wk b{display:block;width:100%;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,var(--acc1),var(--acc2));min-height:4px;transition:height 1s ease}
-.wk b.neg{background:linear-gradient(180deg,#f09a97,#d9534f)}
-.wk b.zero{background:var(--line)}
-.grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.grid7 span{aspect-ratio:1;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--line);background:var(--glass2);color:var(--ink2)}
-.grid7 .h{border:0;background:none;aspect-ratio:auto;font-size:11px}
-.grid7 .p1{background:rgba(70,197,138,.25);color:var(--ink)}.grid7 .p2{background:rgba(70,197,138,.5);color:var(--ink)}.grid7 .p3{background:rgba(42,145,99,.85);color:#fff}
-.grid7 .n1{background:rgba(217,83,79,.28);color:var(--ink)}
-.grid7 .today{outline:2px solid var(--acc2)}
-.hrs{display:flex;align-items:flex-end;gap:3px;height:90px}
-.hrs div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
-.hrs i{display:block;width:100%;border-radius:4px 4px 2px 2px;background:var(--bad);opacity:.75;min-height:0}
-.hrs u{display:block;width:100%;border-radius:2px;background:var(--good);opacity:.7;min-height:0;text-decoration:none}
-.lbls{display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-top:6px}
-.log{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:15px}
-.log:first-of-type{border-top:0}
-.pts{font-weight:500;min-width:36px;text-align:right}
-.pos{color:var(--good)}.neg{color:var(--bad)}
-.tri{font-size:11px}
-details summary{list-style:none;cursor:pointer;color:var(--ink2);font-size:13px}
-details summary::-webkit-details-marker{display:none}
-.field{width:100%;height:40px;border-radius:999px;border:1px solid var(--line);background:var(--glass2);color:var(--ink);font:inherit;padding:0 16px;outline:none}
-.sw{position:relative;width:48px;height:28px;border-radius:99px;background:var(--line);border:0;cursor:pointer;flex:none;transition:background .4s}
-.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .4s}
-.sw.on{background:linear-gradient(135deg,var(--acc1),var(--acc2))}.sw.on i{transform:translateX(20px)}
-.set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
-.set:first-of-type{border-top:0}
-.step{display:flex;align-items:center;gap:10px}
-.step b{min-width:34px;text-align:center;font-weight:400;font-size:20px}
-/* sheets */
-.ov{position:fixed;inset:0;z-index:20;background:rgba(10,20,40,.38);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;animation:fade .5s ease}
-.sheet{width:100%;max-width:560px;background:var(--glass);backdrop-filter:blur(30px) saturate(1.3);-webkit-backdrop-filter:blur(30px) saturate(1.3);border:1px solid var(--line);border-radius:34px 34px 0 0;padding:24px 22px calc(env(safe-area-inset-bottom) + 24px);animation:up .6s cubic-bezier(.2,.8,.2,1);max-height:92%;overflow:auto}
-:root[data-mode=dark] .sheet{background:rgba(32,37,45,.9)}
-:root:not([data-mode=dark]) .sheet{background:rgba(250,252,255,.88)}
-.sheet h3{font-size:24px;font-weight:300;margin:0 0 8px}
-.sheet p{color:var(--ink2);line-height:1.5;margin:6px 0 14px}
-@keyframes fade{from{opacity:0}to{opacity:1}}
-@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
-/* companion */
-#orb{width:44px;height:44px;border-radius:50%;flex:none;cursor:pointer;background:radial-gradient(circle at 32% 28%,#fff8e0,#f3d36e 38%,#4fc3b5 78%,#2c8f96);
-  box-shadow:0 6px 16px rgba(60,150,150,.35),inset 0 -4px 8px rgba(255,255,255,.35);animation:float 6s ease-in-out infinite;position:relative}
-#orb:before,#orb:after{content:"";position:absolute;top:19px;width:4px;height:4px;border-radius:50%;background:rgba(20,40,50,.7)}
-#orb:before{left:14px}#orb:after{right:14px}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-#say{position:fixed;top:calc(env(safe-area-inset-top) + 66px);right:16px;left:60px;max-width:360px;margin-left:auto;z-index:8;padding:12px 16px;border-radius:20px;
-  background:var(--glass);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid var(--line);box-shadow:var(--shadow);font-size:14px;line-height:1.45;
-  opacity:0;transform:translateY(-8px);pointer-events:none;transition:all .8s ease}
-#say.on{opacity:1;transform:none}
-/* breathing */
-.breath{width:190px;height:190px;border-radius:50%;margin:18px auto;background:radial-gradient(circle at 35% 30%,#fff8e0,#7fd6c9 60%,#3a9ca3);box-shadow:0 0 50px rgba(79,195,181,.5);animation:br 10s ease-in-out infinite;display:flex;align-items:center;justify-content:center;color:#103a40;font-size:18px}
-@keyframes br{0%{transform:scale(.6)}40%{transform:scale(1)}100%{transform:scale(.6)}}
-/* lock */
-#lock{position:fixed;inset:0;z-index:50;background:linear-gradient(160deg,var(--bg1),var(--bg2));display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
-#lock.on{display:flex}
-.dots{display:flex;gap:14px;height:16px}
-.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ink2);transition:all .3s}
-.dots i.f{background:var(--ink);border-color:var(--ink)}
-.pad{display:grid;grid-template-columns:repeat(3,72px);gap:14px}
-.pad button{height:72px;border-radius:50%;border:1px solid var(--line);background:var(--glass);color:var(--ink);font:inherit;font-size:26px;font-weight:300;cursor:pointer}
-.pad button:active{background:var(--glass2)}
-#cover{position:fixed;inset:0;z-index:60;background:var(--bg1);display:none}
-body.cover #cover{display:block}
-.hide{display:none!important}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-</style>
 </head>
 <body>
-<div class="blobs"><i></i><i></i></div>
-<div id="app">
-  <header>
-    <div><h1>Rustam's<br>Habit Tracker</h1><div class="ver">Version 1.0</div></div>
-    <div id="orb" title="Tap me" aria-label="Companion"></div>
-  </header>
-  <main id="main"></main>
-</div>
-<div id="say" role="status"></div>
-<nav><div id="tabs"></div></nav>
-<div id="ov"></div>
-<div id="lock"><div id="lt" style="font-size:22px;font-weight:300"></div><div class="dots" id="ld"></div><div class="pad" id="lp"></div><div class="small" id="lm"></div></div>
-<div id="cover"></div>
+<div class="lock" id="lock"><div class="title-serif" id="lock-title">Enter your PIN</div><div class="dots" id="lock-dots"></div><div class="lock-msg" id="lock-msg"></div><div class="keypad" id="lock-pad"></div></div>
+<div id="cover" aria-hidden="true"></div>
 
+<header class="app-header">
+  <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="logoH" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--blue-a)"/><stop offset="1" style="stop-color:var(--blue-b)"/></linearGradient></defs><rect width="48" height="48" rx="13" fill="url(#logoH)"/><g fill="none" stroke-width="5" transform="rotate(-90 24 24)"><circle cx="24" cy="24" r="12" stroke="#fff"/><circle cx="24" cy="24" r="12" stroke="#f6dc9b" stroke-dasharray="16 81.7" stroke-linecap="round"/></g></svg>
+  <div style="flex:1;min-width:0"><div class="brand"><span>Rustam's</span> Habit Tracker</div><div class="ver-line" id="app-ver">Version 1.1</div></div>
+  <button id="orb" class="cc" aria-label="Companion. Tap for a tip." title="Tap for a tip"><i></i></button>
+</header>
+<div id="banner"></div>
+<main>
+  <section class="screen" id="s-today"></section>
+  <section class="screen" id="s-prog"></section>
+  <section class="screen" id="s-set"></section>
+</main>
+<nav class="nav-bar" id="nav">
+  <div class="nav-item" data-s="today">Today</div><div class="nav-item" data-s="prog">Progress</div><div class="nav-item" data-s="set">Settings</div>
+</nav>
+<div class="modal-backdrop" id="sheet-bg"><div class="modal" id="sheet" role="dialog"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="file-restore" accept=".json,application/json" hidden>
+<script src="btnlook.js"></script>
+<script src="app.js"></script>
 <script>
-(function(){
-'use strict';
-var KEY='rht.v1', VERSION='1.0';
-function defaults(){return{name:'',accent:'sapphire',theme:'auto',pin:null,salt:Math.random().toString(36).slice(2),lockAfter:15,
-  yv:1,goal:20,target:120,logs:[],ul:[],ideas:[],done:false,sound:true,vib:true,said:0}}
-var S=load();
-function load(){try{var o=JSON.parse(localStorage.getItem(KEY)||'{}');return Object.assign(defaults(),o)}catch(e){return defaults()}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-var $=function(s){return document.querySelector(s)};
-var tab='today', pTab='week', monthOff=0;
-var IC={
- trash:'<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>',
- lock:'<svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="3"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>',
- wind:'<svg viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 10-3-3M3 12h16a3 3 0 11-3 3M3 16h8"/></svg>',
- shield:'<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
- plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
- down:'<svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>',
- up:'<svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>',
- flame:'<svg viewBox="0 0 24 24"><path d="M12 3c1 4 5 5 5 10a5 5 0 01-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/></svg>',
- phone:'<svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 18h2"/></svg>',
- left:'<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
- right:'<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>'
-};
-/* ---------- dates ---------- */
-function pad(n){return n<10?'0'+n:''+n}
-function dk(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
-function today(){return dk(Date.now())}
-function fromKey(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2])}
-function addDays(k,n){var d=fromKey(k);d.setDate(d.getDate()+n);return dk(d)}
-function weekStart(k){var d=fromKey(k);var w=(d.getDay()+6)%7;d.setDate(d.getDate()-w);return dk(d)}
-function hm(t){var d=new Date(t),h=d.getHours(),m=d.getMinutes(),a=h>=12?'pm':'am';h=h%12||12;return h+':'+pad(m)+' '+a}
-function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-/* ---------- scoring ---------- */
-function dv(){return S.yv*2}
-function build(){
-  var I={};
-  function g(k){return I[k]||(I[k]={d:0,y:0,m:0,hasUl:false})}
-  S.logs.forEach(function(l){var o=g(dk(l.t));if(l.k==='d')o.d++;else o.y++});
-  S.ul.forEach(function(u){var o=g(dk(u.t));o.m+=u.m;o.hasUl=true});
-  return I;
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 }
-function ulScore(o){if(!o||!o.hasUl)return 0;var r=(S.target-o.m)/S.target;return Math.round(Math.max(0,Math.min(1,r))*10)}
-function score(o){if(!o)return 0;return o.d*dv()-o.y*S.yv+ulScore(o)}
-function stats(){
-  var I=build(),keys=Object.keys(I).sort(),total=0,best=0,bestK='',D=0,Y=0;
-  keys.forEach(function(k){var s=score(I[k]);total+=Math.max(0,s);if(s>best){best=s;bestK=k}D+=I[k].d;Y+=I[k].y});
-  var streak=0,k=today();if(!(I[k]&&score(I[k])>0))k=addDays(k,-1);
-  while(I[k]&&score(I[k])>0){streak++;k=addDays(k,-1)}
-  var clear=keys.filter(function(k){return I[k].d>0&&I[k].y===0}).length;
-  var lvl=Math.floor(Math.sqrt(total/12))+1, cur=Math.pow(lvl-1,2)*12, nxt=Math.pow(lvl,2)*12;
-  return{I:I,total:total,best:best,bestK:bestK,D:D,Y:Y,streak:streak,clear:clear,lvl:lvl,prog:(total-cur)/(nxt-cur),toNext:Math.ceil(nxt-total)};
-}
-var LVL=['Seed','Sprout','Sapling','Young tree','Strong tree','Oak','Forest','Mountain','Sky','Star'];
-function lvlName(n){return LVL[Math.min(n-1,LVL.length-1)]}
-function weekTotals(k){var I=build(),s=weekStart(k),out=[];for(var i=0;i<7;i++){var d=addDays(s,i);out.push({k:d,o:I[d]})}return out}
-/* ---------- companion ---------- */
-var sayT;
-function say(t){var e=$('#say');e.textContent=t;e.classList.add('on');clearTimeout(sayT);sayT=setTimeout(function(){e.classList.remove('on')},5200)}
-var KIND_D=['Well done. You rode out that urge.','Strong. Each time you resist, the habit gets weaker.','That was a real win. Keep going.','You chose yourself just now. Good.'];
-var KIND_Y=['It happened. It does not define you. Reset and go again.','One slip is just one slip. The next choice is yours.','Be kind to yourself. Shame feeds the habit, calm starves it.','Done is done. Breathe, then change the room you are in.'];
-var TIPS=['Stand up and leave the room you are in.','Wash your face and drink a glass of water.','Put your phone outside the bedroom tonight.','Do 20 slow squats or push-ups.','Step outside for five minutes.','Message a friend or call a family member.','Open a book and read one page aloud.'];
-var IDLE=['Hard hours are coming. Keep your phone away from your bed.','Small wins add up to a strong character.','An urge is like a wave. It rises, peaks and falls.','You do not need to win the day, only the next ten minutes.'];
-function pick(a){return a[Math.floor(Math.random()*a.length)]}
-/* ---------- feedback ---------- */
-var AC;
-function tone(f,d,v){if(!S.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();var o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;o.type='sine';g.gain.value=0;
- o.connect(g);g.connect(AC.destination);var t=AC.currentTime;g.gain.linearRampToValueAtTime(v||.08,t+.03);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.start(t);o.stop(t+d+.05)}catch(e){}}
-function vib(p){if(S.vib&&navigator.vibrate)try{navigator.vibrate(p)}catch(e){}}
-/* ---------- actions ---------- */
-var undoT;
-function toastUndo(msg,fn){
-  var e=$('#say');e.innerHTML=esc(msg)+' <button class="btn sm out" id="undo" style="margin-left:6px">Undo</button>';e.style.pointerEvents='auto';e.classList.add('on');
-  $('#undo').onclick=function(){fn();e.classList.remove('on');e.style.pointerEvents='none';render()};
-  clearTimeout(sayT);clearTimeout(undoT);undoT=setTimeout(function(){e.classList.remove('on');e.style.pointerEvents='none'},6000);
-}
-function logHab(k,rescue){
-  var l={id:Date.now()+Math.random(),t:Date.now(),k:k};if(rescue)l.r=1;S.logs.push(l);save();
-  if(k==='d'){tone(660,.35);setTimeout(function(){tone(880,.4)},140);vib(18);render();say(pick(KIND_D)+' +'+dv())}
-  else{tone(300,.5,.06);vib([30,60,30]);render();yieldSheet()}
-}
-function yieldSheet(){
-  var h=new Date().getHours(),late=(h>=16||h<5);
-  sheet('<h3>It happened</h3><p>'+esc(pick(KIND_Y))+'</p><div class="card" style="margin:0 0 14px"><div class="small">Try this now</div><div style="margin-top:6px;font-size:17px">'+esc(pick(TIPS))+'</div></div>'+
-   (late?'<p>Evenings and nights are the hardest hours. Charge your phone away from your bed tonight.</p>':'')+
-   '<div class="row"><button class="btn primary grow" id="y1">'+IC.wind+'Start Urge Rescue</button><button class="btn out" id="y2">Close</button></div>');
-  $('#y1').onclick=function(){close();rescue()};$('#y2').onclick=close;
-}
-function delLog(id){
-  var i=S.logs.findIndex(function(l){return l.id===id});if(i<0)return;var rm=S.logs.splice(i,1)[0];save();render();
-  toastUndo('Entry removed.',function(){S.logs.push(rm);save()});
-}
-function addUl(m){S.ul.push({id:Date.now()+Math.random(),t:Date.now(),m:m});save();tone(520,.3);vib(12);render();
-  var o=build()[today()],left=S.target-o.m;say(left>0?'Logged. '+left+' minutes left before your daily limit.':'Over the limit today. Tomorrow is a fresh page.')}
-function delUl(id){var i=S.ul.findIndex(function(u){return u.id===id});if(i<0)return;var rm=S.ul.splice(i,1)[0];save();render();toastUndo('Entry removed.',function(){S.ul.push(rm);save()})}
-/* ---------- sheets ---------- */
-function sheet(html,noClose){var o=$('#ov');o.innerHTML='<div class="ov" id="ovb"><div class="sheet">'+html+'</div></div>';
-  if(!noClose)$('#ovb').onclick=function(e){if(e.target.id==='ovb')close()}}
-function close(){$('#ov').innerHTML='';clearInterval(rt)}
-function ask(text,yes,fn){sheet('<h3>'+esc(text)+'</h3><div class="row" style="margin-top:14px"><button class="btn primary grow" id="ay">'+esc(yes)+'</button><button class="btn out grow" id="an">Cancel</button></div>');
-  $('#ay').onclick=function(){close();fn()};$('#an').onclick=close}
-var rt;
-function rescue(){
-  var left=120;
-  sheet('<h3>Urge Rescue</h3><p>Breathe in as the circle grows, out as it shrinks. The urge will peak and pass. Stay for two minutes.</p><div class="breath"><span id="bt">Breathe</span></div>'+
-   '<div class="row sp"><div class="big" style="font-size:40px" id="rc">2:00</div><div class="small" id="rtip" style="text-align:right;max-width:60%"></div></div>'+
-   '<div class="row" style="margin-top:16px"><button class="btn good grow" id="rd" disabled style="opacity:.45">I rode it out</button><button class="btn out" id="rx">Close</button></div>',true);
-  var ti=0;function tp(){$('#rtip').textContent=TIPS[ti%TIPS.length];ti++}tp();
-  var ph=0;
-  rt=setInterval(function(){left--;var m=Math.floor(left/60),s=left%60;var e=$('#rc');if(!e){clearInterval(rt);return}
-    e.textContent=m+':'+pad(s);var t=(120-left)%10;$('#bt').textContent=t<4?'In':'Out';if((120-left)%20===0)tp();
-    if(left<=0){clearInterval(rt);var b=$('#rd');b.disabled=false;b.style.opacity=1;$('#bt').textContent='Done'}},1000);
-  $('#rd').disabled=true;
-  $('#rd').onclick=function(){close();logHab('d',true)};
-  $('#rx').onclick=close;
-}
-/* ---------- pin ---------- */
-function hash(p){var s=S.salt+':'+p;
-  if(window.crypto&&crypto.subtle&&window.TextEncoder){return crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return('0'+x.toString(16)).slice(-2)}).join('')})}
-  var h=5381;for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return Promise.resolve('x'+h)}
-function pinPad(title,cb,cancel){
-  var v='',L=$('#lock');$('#lt').textContent=title;$('#lm').textContent='';L.classList.add('on');
-  function dots(){$('#ld').innerHTML=[0,1,2,3].map(function(i){return'<i class="'+(i<v.length?'f':'')+'"></i>'}).join('')}
-  dots();
-  var keys=['1','2','3','4','5','6','7','8','9',cancel?'×':'','0','⌫'];
-  $('#lp').innerHTML=keys.map(function(k){return k?'<button data-k="'+k+'">'+k+'</button>':'<span></span>'}).join('');
-  $('#lp').onclick=function(e){var k=e.target.getAttribute&&e.target.getAttribute('data-k');if(!k)return;
-    if(k==='⌫'){v=v.slice(0,-1);dots();return}
-    if(k==='×'){L.classList.remove('on');return}
-    if(v.length<4){v+=k;vib(8);dots()}
-    if(v.length===4){var x=v;v='';setTimeout(function(){dots();cb(x,function(m){$('#lm').textContent=m||''})},120)}};
-}
-var hiddenAt=0;
-function lockNow(){if(!S.pin)return;pinPad('Enter your PIN',function(p,msg){hash(p).then(function(h){if(h===S.pin){$('#lock').classList.remove('on')}else{msg('Wrong PIN. Try again.');vib([40,40,40])}})})}
-function setPin(done){
-  pinPad('Choose a 4-digit PIN',function(a){
-    pinPad('Repeat the PIN',function(b,msg){
-      if(a!==b){msg('The PINs do not match.');setTimeout(function(){setPin(done)},900);return}
-      hash(a).then(function(h){S.pin=h;save();$('#lock').classList.remove('on');if(done)done()})
-    },true)
-  },true)
-}
-document.addEventListener('visibilitychange',function(){
-  if(document.hidden){hiddenAt=Date.now();document.body.classList.add('cover')}
-  else{document.body.classList.remove('cover');if(S.pin&&Date.now()-hiddenAt>S.lockAfter*1000)lockNow()}
-});
-/* ---------- wizard ---------- */
-function wizard(step){
-  step=step||1;
-  if(step===1){sheet('<h3>Welcome</h3><p>This is a private space to build strong habits. Everything stays on your phone. What should I call you?</p><input class="field" id="wn" placeholder="Your name" value="'+esc(S.name)+'"><div style="margin-top:14px"><button class="btn primary" id="wx" style="width:100%">Continue</button></div>',true);
-    $('#wx').onclick=function(){S.name=$('#wn').value.trim()||'Friend';save();wizard(2)}}
-  else if(step===2){sheet('<h3>How it works</h3><p>Your main habit is called <b>The Nemesis</b>. Each time you resist an urge, press <b>Ducked</b> and earn '+dv()+' points. Each time you give in, press <b>Yielded</b> and lose '+S.yv+'. Resisting is worth twice as much, so progress is always possible.</p><p>A second habit, <b>Unplug</b>, helps you spend fewer minutes on pointless screen time.</p><button class="btn primary" id="wx" style="width:100%">Continue</button>',true);
-    $('#wx').onclick=function(){wizard(3)}}
-  else if(step===3){sheet('<h3>Your look</h3><p>Choose a colour. You can change it later in Settings.</p><div class="row"><button class="btn grow" id="a1">Sapphire</button><button class="btn grow" id="a2">Champagne</button></div><div style="margin-top:14px"><button class="btn primary" id="wx" style="width:100%">Continue</button></div>',true);
-    $('#a1').onclick=function(){S.accent='sapphire';save();apply()};$('#a2').onclick=function(){S.accent='gold';save();apply()};
-    $('#wx').onclick=function(){wizard(4)}}
-  else{sheet('<h3>Protect your privacy</h3><p>A PIN keeps this app private. The app also hides its content when you switch to another app.</p><div class="row"><button class="btn primary grow" id="p1">'+IC.lock+'Set a PIN</button><button class="btn out grow" id="p2">Later</button></div>',true);
-    $('#p1').onclick=function(){close();S.done=true;save();setPin(function(){render();say('Welcome, '+S.name+'. One small win at a time.')})};
-    $('#p2').onclick=function(){S.done=true;save();close();render();say('Welcome, '+S.name+'. One small win at a time.')}}
-}
-/* ---------- views ---------- */
-function ring(frac,color,size){var r=size?size:58,c=2*Math.PI*r,f=Math.max(0,Math.min(1,frac));
-  return'<svg viewBox="0 0 132 132"><circle cx="66" cy="66" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="66" cy="66" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="9" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+(c*(1-f))+'" style="transition:stroke-dashoffset 1.2s ease"/></svg>'}
-function greet(){var h=new Date().getHours();return(h<5?'Late night':h<12?'Good morning':h<17?'Good afternoon':'Good evening')+(S.name?', '+esc(S.name):'')}
-function dangerHours(){
-  var c=new Array(24).fill(0);S.logs.forEach(function(l){if(l.k==='y')c[new Date(l.t).getHours()]++});
-  var n=c.reduce(function(a,b){return a+b},0);return{c:c,n:n}}
-function fmtH(h){var a=h>=12?'pm':'am';return(h%12||12)+' '+a}
-function viewToday(){
-  var st=stats(),k=today(),o=st.I[k]||{d:0,y:0,m:0,hasUl:false},sc=score(o);
-  var h=new Date().getHours(),dh=dangerHours(),hard=(h>=16||h<5);
-  var win='';
-  if(dh.n>=5){var mx=dh.c.indexOf(Math.max.apply(null,dh.c));win='Your hardest hour is '+fmtH(mx)+'. Plan something before it.'}
-  else win=hard?'Hard hours: after 4 pm and late at night.':'Calm hours. A good time to plan your evening.';
-  var logs=S.logs.filter(function(l){return dk(l.t)===k}).sort(function(a,b){return b.t-a.t});
-  var uls=S.ul.filter(function(u){return dk(u.t)===k}).sort(function(a,b){return b.t-a.t});
-  var wk=weekTotals(k),ws=0,wl=0;wk.forEach(function(x){if(x.o&&x.o.hasUl){ws+=x.o.m;}});
-  var prevS=addDays(weekStart(k),-7),pm=0,pAny=false;weekTotals(prevS).forEach(function(x){if(x.o&&x.o.hasUl){pm+=x.o.m;pAny=true}});
-  var wTarget=pAny?Math.round(pm*0.9):S.target*7;
-  var out='';
-  out+='<div class="small" style="margin:2px 4px 0">'+greet()+'</div>';
-  out+='<div class="card"><div class="row"><div class="ring">'+ring(sc/S.goal,'url(#g)')+'<div class="c"><div class="big" style="font-size:40px">'+sc+'</div><div class="small">of '+S.goal+'</div></div></div>'+
-    '<div class="grow"><div class="small">Points today</div><div class="chips" style="margin-top:10px"><span class="chip">'+IC.flame+st.streak+' day streak</span><span class="chip">Level '+st.lvl+' · '+lvlName(st.lvl)+'</span></div>'+
-    '<div class="small" style="margin-top:10px">'+st.toNext+' points to the next level</div><div class="bar" style="margin-top:6px"><i style="width:'+Math.round(st.prog*100)+'%"></i></div></div></div>'+
-    '<svg width="0" height="0"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="var(--acc1)"/><stop offset="1" stop-color="var(--acc2)"/></linearGradient></defs></svg></div>';
-  out+='<div class="card"><div class="row sp"><h2 style="margin:0">The Nemesis</h2><span class="small">Resist +'+dv()+' · Yield −'+S.yv+'</span></div>'+
-    '<div class="row" style="margin:16px 0 12px"><button class="btn big2 good" id="bd">Ducked</button><button class="btn big2 out" id="by">Yielded</button></div>'+
-    '<div class="row sp small"><span class="pos">Ducked '+o.d+'</span><span>'+esc(win)+'</span><span class="neg">Yielded '+o.y+'</span></div>'+
-    '<div style="margin-top:14px"><button class="btn primary" id="br" style="width:100%">'+IC.wind+'Urge Rescue</button></div></div>';
-  var pct=Math.min(1,o.m/S.target),over=o.m>S.target;
-  out+='<div class="card"><div class="row sp"><h2 style="margin:0">Unplug</h2><span class="small">Unplug score '+(o.hasUl?ulScore(o):0)+' / 10</span></div>'+
-    '<div class="row" style="margin:12px 0 8px;align-items:baseline"><span class="big" style="font-size:44px">'+o.m+'</span><span class="small">of '+S.target+' minutes of pointless screen time</span></div>'+
-    '<div class="bar '+(over?'r':'')+'"><i style="width:'+Math.round(pct*100)+'%"></i></div>'+
-    '<div class="chips" style="margin-top:14px"><button class="btn sm" data-ul="15">+15</button><button class="btn sm" data-ul="30">+30</button><button class="btn sm" data-ul="60">+60</button><button class="btn sm out" id="ulc">Custom</button><button class="btn sm out" id="ulz">Zero today</button></div>'+
-    '<div class="small" style="margin-top:14px">This week: '+ws+' of '+wTarget+' minutes ('+(pAny?'10% less than last week':'first week target')+')</div>'+
-    '<div class="bar '+(ws>wTarget?'r':'g')+'" style="margin-top:6px"><i style="width:'+Math.min(100,Math.round(ws/Math.max(1,wTarget)*100))+'%"></i></div></div>';
-  if(logs.length||uls.length){
-    out+='<div class="card"><details><summary>Today\'s log · '+(logs.length+uls.length)+' entries ▾</summary><div style="margin-top:10px">';
-    var all=[];logs.forEach(function(l){all.push({t:l.t,type:'h',l:l})});uls.forEach(function(u){all.push({t:u.t,type:'u',u:u})});all.sort(function(a,b){return b.t-a.t});
-    all.forEach(function(x){
-      if(x.type==='h'){var d=x.l.k==='d';out+='<div class="log"><span class="small" style="width:64px">'+hm(x.l.t)+'</span><span class="grow">'+(d?'Ducked'+(x.l.r?' (rescue)':''):'Yielded')+'</span><span class="pts '+(d?'pos':'neg')+'">'+(d?'+'+dv():'−'+S.yv)+'</span><button class="btn round out del" data-dl="'+x.l.id+'" aria-label="Delete entry">'+IC.trash+'</button></div>'}
-      else{out+='<div class="log"><span class="small" style="width:64px">'+hm(x.u.t)+'</span><span class="grow">Screen time</span><span class="pts">'+x.u.m+' min</span><button class="btn round out del" data-du="'+x.u.id+'" aria-label="Delete entry">'+IC.trash+'</button></div>'}
-    });
-    out+='</div></details></div>';
-  }
-  return out;
-}
-function viewProgress(){
-  var st=stats(),I=st.I,k=today(),out='';
-  out+='<div style="margin:6px 0"><div class="seg" id="pseg"><button data-p="week" class="'+(pTab==='week'?'on':'')+'">Week</button><button data-p="month" class="'+(pTab==='month'?'on':'')+'">Month</button></div></div>';
-  if(pTab==='week'){
-    var ws=weekStart(k),days=weekTotals(k),prev=weekTotals(addDays(ws,-7));
-    var tot=0,ptot=0,mx=1;days.forEach(function(x){var s=score(x.o);tot+=s;mx=Math.max(mx,Math.abs(s))});
-    var cmpDays=days.filter(function(x){return x.k<=k}).length;prev.forEach(function(x,i){if(i<cmpDays)ptot+=score(x.o)});
-    var diff=tot-ptot,L=['M','T','W','T','F','S','S'];
-    out+='<div class="card"><h2>This week</h2><div class="row" style="align-items:baseline"><span class="big">'+tot+'</span><span class="small">points</span>'+
-      '<span class="small '+(diff>=0?'pos':'neg')+'" style="margin-left:auto"><span class="tri">'+(diff>=0?'▲':'▼')+'</span> '+Math.abs(diff)+' vs same days last week</span></div>'+
-      '<div class="wk" style="margin-top:16px">'+days.map(function(x,i){var s=score(x.o),hgt=s===0?4:Math.round(Math.abs(s)/mx*90)+4;
-        return'<div><span>'+(s||'')+'</span><b class="'+(s<0?'neg':s===0?'zero':'')+'" style="height:'+hgt+'px"></b>'+L[i]+'</div>'}).join('')+'</div></div>';
-  }else{
-    var d0=fromKey(k);d0.setDate(1);d0.setMonth(d0.getMonth()+monthOff);
-    var y=d0.getFullYear(),m=d0.getMonth(),dim=new Date(y,m+1,0).getDate(),off=(d0.getDay()+6)%7,mt=0,mD=0,mY=0;
-    var cells='<span class="h">M</span><span class="h">T</span><span class="h">W</span><span class="h">T</span><span class="h">F</span><span class="h">S</span><span class="h">S</span>';
-    for(var i=0;i<off;i++)cells+='<span class="h"></span>';
-    for(var d=1;d<=dim;d++){var key=y+'-'+pad(m+1)+'-'+pad(d),o=I[key],s=score(o),c='';
-      if(o){mt+=s;mD+=o.d;mY+=o.y}
-      if(o&&s>0)c=s>=S.goal?'p3':s>=S.goal/2?'p2':'p1';else if(o&&s<0)c='n1';
-      cells+='<span class="'+c+(key===k?' today':'')+'">'+d+'</span>'}
-    var mn=['January','February','March','April','May','June','July','August','September','October','November','December'][m];
-    out+='<div class="card"><div class="row sp"><button class="btn round out" id="mp" aria-label="Previous month">'+IC.left+'</button><h2 style="margin:0">'+mn+' '+y+'</h2><button class="btn round out" id="mn" aria-label="Next month">'+IC.right+'</button></div>'+
-      '<div class="row" style="align-items:baseline;margin:14px 0"><span class="big">'+mt+'</span><span class="small">points · Ducked '+mD+' · Yielded '+mY+'</span></div><div class="grid7">'+cells+'</div>'+
-      '<div class="small" style="margin-top:12px">Darker green means a stronger day. Red means a day that lost points.</div></div>';
-  }
-  var rate=st.D+st.Y?Math.round(st.D/(st.D+st.Y)*100):0;
-  out+='<div class="card"><h2>All time</h2><div class="row"><div class="ring" style="width:104px;height:104px">'+ring(rate/100,'var(--good)')+'<div class="c"><div style="font-size:26px;font-weight:300">'+rate+'%</div><div class="small" style="font-size:11px">resisted</div></div></div>'+
-    '<div class="grow"><div class="row sp"><span class="small">Ducked</span><b class="pos">'+st.D+'</b></div><div class="row sp"><span class="small">Yielded</span><b class="neg">'+st.Y+'</b></div><div class="row sp"><span class="small">Clear days</span><b>'+st.clear+'</b></div><div class="row sp"><span class="small">Best day</span><b>'+st.best+'</b></div></div></div></div>';
-  var hc=new Array(24).fill(0),hd=new Array(24).fill(0);S.logs.forEach(function(l){var h=new Date(l.t).getHours();if(l.k==='y')hc[h]++;else hd[h]++});
-  var mxh=Math.max(1,Math.max.apply(null,hc),Math.max.apply(null,hd));
-  out+='<div class="card"><h2>Your hours</h2><div class="hrs">'+hc.map(function(c,i){return'<div><u style="height:'+Math.round(hd[i]/mxh*38)+'px"></u><i style="height:'+Math.round(c/mxh*48)+'px"></i></div>'}).join('')+'</div>'+
-    '<div class="lbls"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>11 pm</span></div>'+
-    '<div class="small" style="margin-top:10px"><span class="pos">■</span> resisted &nbsp; <span class="neg">■</span> yielded. The app learns your hard hours from this chart.</div></div>';
-  return out;
-}
-function sw(id,on){return'<button class="sw '+(on?'on':'')+'" id="'+id+'" role="switch" aria-checked="'+on+'"><i></i></button>'}
-function stepper(id,v,u){return'<div class="step"><button class="btn round" data-st="'+id+'" data-d="-1" aria-label="Less">−</button><b>'+v+(u||'')+'</b><button class="btn round" data-st="'+id+'" data-d="1" aria-label="More">+</button></div>'}
-function viewSettings(){
-  var out='';
-  out+='<div class="card"><h2>You</h2><div class="set"><span>Name</span><input class="field" id="sn" value="'+esc(S.name)+'" style="width:60%"></div></div>';
-  out+='<div class="card"><h2>Appearance</h2><div class="set"><span>Theme</span><div class="seg" id="sth"><button data-t="auto" class="'+(S.theme==='auto'?'on':'')+'">Auto</button><button data-t="light" class="'+(S.theme==='light'?'on':'')+'">Light</button><button data-t="dark" class="'+(S.theme==='dark'?'on':'')+'">Dark</button></div></div>'+
-    '<div class="set"><span>Colour</span><div class="seg" id="sac"><button data-a="sapphire" class="'+(S.accent==='sapphire'?'on':'')+'">Sapphire</button><button data-a="gold" class="'+(S.accent==='gold'?'on':'')+'">Champagne</button></div></div>'+
-    '<div class="set"><span>Sounds</span>'+sw('ssn',S.sound)+'</div><div class="set"><span>Vibration</span>'+sw('svb',S.vib)+'</div></div>';
-  out+='<div class="card"><h2>Points</h2><div class="set"><div><div>Cost of a Yielded</div><div class="small">Ducked earns twice this: +'+dv()+'</div></div>'+stepper('yv',S.yv)+'</div>'+
-    '<div class="set"><div><div>Daily points goal</div><div class="small">Fills your ring</div></div>'+stepper('goal',S.goal)+'</div>'+
-    '<div class="set"><div><div>Daily screen-time limit</div><div class="small">Minutes of pointless screen time</div></div>'+stepper('target',S.target,'m')+'</div></div>';
-  out+='<div class="card"><h2>Privacy</h2><div class="set"><span>PIN lock</span>'+(S.pin?'<div class="row"><button class="btn sm" id="pc">Change</button><button class="btn sm out" id="pr">Remove</button></div>':'<button class="btn sm primary" id="ps">Set a PIN</button>')+'</div>'+
-    '<div class="set"><div><div>Lock after leaving</div><div class="small">Seconds away before the PIN is asked</div></div>'+stepper('lockAfter',S.lockAfter,'s')+'</div>'+
-    '<div class="small" style="margin-top:8px">The app hides its content when you switch apps. Your data never leaves this phone unless you export it.</div></div>';
-  out+='<div class="card"><h2>Future habits</h2><div class="small" style="margin-bottom:10px">Write habits you want to add later, such as exercise or sleep. We will add them one by one as you use the app.</div>'+
-    S.ideas.map(function(t,i){return'<div class="log"><span class="grow">'+esc(t)+'</span><button class="btn round out del" data-di="'+i+'" aria-label="Delete idea">'+IC.trash+'</button></div>'}).join('')+
-    '<div class="row" style="margin-top:10px"><input class="field" id="idn" placeholder="e.g. Sleep by 10 pm"><button class="btn round primary" id="ida" aria-label="Add">'+IC.plus+'</button></div></div>';
-  out+='<div class="card"><h2>Backup and data</h2><div class="row"><button class="btn grow" id="bx">'+IC.down+'Export</button><button class="btn grow" id="bi">'+IC.up+'Import</button></div>'+
-    '<div style="margin-top:12px"><button class="btn out del" id="be" style="width:100%">Erase everything</button></div><input type="file" id="bf" accept="application/json" class="hide"></div>';
-  out+='<div class="small" style="text-align:center;margin:14px 0">Rustam\'s Habit Tracker · Version '+VERSION+'</div>';
-  return out;
-}
-function render(){
-  var m=$('#main'),sy=m.scrollTop;
-  m.innerHTML=tab==='today'?viewToday():tab==='progress'?viewProgress():viewSettings();
-  m.scrollTop=sy;
-  $('#tabs').innerHTML=['today:Today','progress:Progress','settings:Settings'].map(function(x){var p=x.split(':');return'<button data-tab="'+p[0]+'" class="'+(tab===p[0]?'on':'')+'">'+p[1]+'</button>'}).join('');
-  bind();
-}
-function bind(){
-  var q=function(s){return document.querySelectorAll(s)};
-  var by=$('#by');if(by){$('#bd').onclick=function(){logHab('d')};by.onclick=function(){logHab('y')};$('#br').onclick=rescue}
-  q('[data-ul]').forEach(function(b){b.onclick=function(){addUl(+b.getAttribute('data-ul'))}});
-  var ulc=$('#ulc');if(ulc){ulc.onclick=function(){sheet('<h3>Minutes of screen time</h3><p>Add the minutes you spent on pointless videos, browsing or pictures.</p><input class="field" id="um" type="number" inputmode="numeric" min="1" placeholder="Minutes"><div class="row" style="margin-top:14px"><button class="btn primary grow" id="uy">Add</button><button class="btn out" id="un">Cancel</button></div>');
-    $('#uy').onclick=function(){var v=parseInt($('#um').value,10);if(v>0){close();addUl(v)}};$('#un').onclick=close};
-    $('#ulz').onclick=function(){addUl(0)}}
-  q('[data-dl]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-dl');ask('Remove this entry?','Remove',function(){delLog(id)})}});
-  q('[data-du]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-du');ask('Remove this entry?','Remove',function(){delUl(id)})}});
-  q('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.getAttribute('data-tab');render();$('#main').scrollTop=0}});
-  q('[data-p]').forEach(function(b){b.onclick=function(){pTab=b.getAttribute('data-p');render()}});
-  var mp=$('#mp');if(mp){mp.onclick=function(){monthOff--;render()};$('#mn').onclick=function(){if(monthOff<0){monthOff++;render()}}}
-  var sn=$('#sn');if(sn){sn.onchange=function(){S.name=sn.value.trim();save();say('Saved.')};
-    q('[data-t]').forEach(function(b){b.onclick=function(){S.theme=b.getAttribute('data-t');save();apply();render()}});
-    q('[data-a]').forEach(function(b){b.onclick=function(){S.accent=b.getAttribute('data-a');save();apply();render()}});
-    $('#ssn').onclick=function(){S.sound=!S.sound;save();render()};$('#svb').onclick=function(){S.vib=!S.vib;save();render()};
-    var lim={yv:[1,5],goal:5,target:[15,600],lockAfter:[0,300]};
-    q('[data-st]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-st'),d=+b.getAttribute('data-d'),stp={yv:1,goal:5,target:15,lockAfter:5}[k];
-      var lo={yv:1,goal:5,target:15,lockAfter:0}[k],hi={yv:5,goal:200,target:600,lockAfter:300}[k];S[k]=Math.max(lo,Math.min(hi,S[k]+d*stp));save();render()}});
-    var ps=$('#ps');if(ps)ps.onclick=function(){setPin(render)};
-    var pc=$('#pc');if(pc){pc.onclick=function(){pinPad('Enter current PIN',function(p,msg){hash(p).then(function(h){if(h===S.pin){setPin(render)}else msg('Wrong PIN.')})},true)};
-      $('#pr').onclick=function(){pinPad('Enter PIN to remove it',function(p,msg){hash(p).then(function(h){if(h===S.pin){S.pin=null;save();$('#lock').classList.remove('on');render()}else msg('Wrong PIN.')})},true)}}
-    $('#ida').onclick=function(){var v=$('#idn').value.trim();if(v){S.ideas.push(v);save();render()}};
-    q('[data-di]').forEach(function(b){b.onclick=function(){S.ideas.splice(+b.getAttribute('data-di'),1);save();render()}});
-    $('#bx').onclick=exportData;$('#bi').onclick=function(){$('#bf').click()};$('#bf').onchange=importData;
-    $('#be').onclick=function(){ask('Erase all data on this phone?','Erase',function(){ask('This cannot be undone. Are you sure?','Yes, erase',function(){localStorage.removeItem(KEY);S=defaults();save();apply();render();wizard(1)})})};
-  }
-}
-function exportData(){
-  var blob=new Blob([JSON.stringify(S)],{type:'application/json'}),a=document.createElement('a'),f='habit-tracker-backup-'+today()+'.json';
-  var file;try{file=new File([blob],f,{type:'application/json'})}catch(e){}
-  if(file&&navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:'Habit Tracker backup'}).catch(function(){})}
-  else{a.href=URL.createObjectURL(blob);a.download=f;document.body.appendChild(a);a.click();a.remove()}
-}
-function importData(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var o=JSON.parse(r.result);if(!o||!Array.isArray(o.logs))throw 0;
-  ask('Replace current data with this backup?','Replace',function(){S=Object.assign(defaults(),o);save();apply();render();say('Backup restored.')})}catch(x){say('That file is not a valid backup.')}};r.readAsText(f)}
-/* ---------- theme ---------- */
-var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
-function apply(){
-  var dark=S.theme==='dark'||(S.theme==='auto'&&mq&&mq.matches),r=document.documentElement;
-  r.setAttribute('data-mode',dark?'dark':'light');r.setAttribute('data-accent',S.accent);
-  var m=document.querySelector('meta[name=theme-color]');if(m)m.content=dark?'#14171c':'#eef2f8';
-}
-if(mq&&mq.addEventListener)mq.addEventListener('change',function(){apply()});
-$('#orb').onclick=function(){say(pick(IDLE.concat(TIPS)))};
-apply();render();
-if(!S.done)wizard(1);else if(S.pin)lockNow();
-if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
-window.__t={S:function(){return S},stats:stats,score:score,build:build};
-})();
 </script>
 </body>
 </html>
