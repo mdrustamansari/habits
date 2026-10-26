@@ -29,27 +29,31 @@
 <link rel="icon" href="icon-192.png">
 </head>
 <body>
+<div id="world" aria-hidden="true"></div>
 <div class="lock" id="lock"><div class="title-serif" id="lock-title">Enter your PIN</div><div class="dots" id="lock-dots"></div><div class="lock-msg" id="lock-msg"></div><div class="keypad" id="lock-pad"></div></div>
 <div id="cover" aria-hidden="true"></div>
 
 <header class="app-header">
   <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="logoH" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--blue-a)"/><stop offset="1" style="stop-color:var(--blue-b)"/></linearGradient></defs><rect width="48" height="48" rx="13" fill="url(#logoH)"/><g fill="none" stroke-width="5" transform="rotate(-90 24 24)"><circle cx="24" cy="24" r="12" stroke="#fff"/><circle cx="24" cy="24" r="12" stroke="#f6dc9b" stroke-dasharray="16 81.7" stroke-linecap="round"/></g></svg>
-  <div style="flex:1;min-width:0"><div class="brand"><span>Rustam's</span> Habit Tracker</div><div class="ver-line" id="app-ver">Version 1.1</div></div>
-  <button id="orb" class="cc" aria-label="Companion. Tap for a tip." title="Tap for a tip"><i></i></button>
+  <div style="flex:1;min-width:0"><div class="brand"><span>Rustam's</span> Habit Tracker</div><div class="ver-line" id="app-ver">Version 1.2</div></div>
+  <button id="orb" class="cc orb" aria-label="Companion. Tap for a tip." title="Tap for a tip"><i></i></button>
 </header>
 <div id="banner"></div>
 <main>
   <section class="screen" id="s-today"></section>
+  <section class="screen" id="s-arm"></section>
   <section class="screen" id="s-prog"></section>
+  <section class="screen" id="s-unp"></section>
   <section class="screen" id="s-set"></section>
 </main>
 <nav class="nav-bar" id="nav">
-  <div class="nav-item" data-s="today">Today</div><div class="nav-item" data-s="prog">Progress</div><div class="nav-item" data-s="set">Settings</div>
+  <div class="nav-item" data-s="arm">Armoury</div><div class="nav-item" data-s="prog">Progress</div><button type="button" class="nav-item hub" id="hub" data-s="today" aria-label="The Nemesis"></button><div class="nav-item" data-s="unp">Unplug</div><div class="nav-item" data-s="set">Settings</div>
 </nav>
 <div class="modal-backdrop" id="sheet-bg"><div class="modal" id="sheet" role="dialog"></div></div>
 <div class="toast" id="toast"></div>
 <input type="file" id="file-restore" accept=".json,application/json" hidden>
 <script src="btnlook.js"></script>
+<script src="game.js"></script>
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {

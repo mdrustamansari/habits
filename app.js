@@ -1,24 +1,36 @@
-/* Rustam's Habit Tracker v1.1: private, offline, on this phone only.
+/* Rustam's Habit Tracker v1.2: private, offline, on this phone only.
    Look: shared style files (style.css, flagship.css, buttons.css, btnlook.js). Words follow DESIGN-LANGUAGE.md section 10. */
 (function () {
 'use strict';
-const KEY = 'ht_v1', VERSION = '1.1';
+const KEY = 'ht_v1', VERSION = '1.2';
+const G = window.HTGame;
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ---------- state ---------- */
 function defaults() {
-  return { name: '', follow: true, look: 'flagship', accent: 'sapphire', flFont: 'system', glow: false, pin: null, salt: Math.random().toString(36).slice(2), lockAfter: 15,
-    yv: 1, goal: 20, target: 120, logs: [], ul: [], ideas: [], done: false, sound: true, vib: true, lastBackup: 0, btnAccent: 9, btnBlack: 0 };
+  return { v: 2, name: '', follow: true, look: 'flagship', accent: 'sapphire', flFont: 'system', glow: false, pin: null, salt: Math.random().toString(36).slice(2), lockAfter: 15,
+    base: 200, goal: 2000, target: 120, learn: true, logs: [], ul: [], ideas: [], done: false, sound: true, vib: true, lastBackup: 0, btnAccent: 9, btnBlack: 0,
+    ucats: [{ id: 'vid', n: 'Videos', w: 1 }, { id: 'web', n: 'Browsing', w: 1 }, { id: 'pic', n: 'Pictures', w: 2 }, { id: 'soc', n: 'Social media', w: 1 }, { id: 'oth', n: 'Other', w: 1 }],
+    gear: { own: [], eq: {} }, buys: [], dismiss: {} };
+}
+function migrate(o) {
+  if (!o.v || o.v < 2) {   // 1.0 and 1.1 kept small points; 1.2 keeps Nemesis Cash in hundreds
+    const yv = Math.max(1, Math.min(3, o.yv || 1)); o.base = 200 * yv; o.goal = 2000;
+    (o.logs || []).forEach(l => { if (l.p === undefined) { l.p = l.k === 'd' ? 2 * o.base : -o.base; l.tier = 1; } });
+    (o.ul || []).forEach(u => { if (!u.c) u.c = 'oth'; }); delete o.yv; o.v = 2;
+  }
+  const d = defaults(); ['ucats', 'gear', 'buys', 'dismiss'].forEach(k => { if (!o[k]) o[k] = d[k]; }); if (!o.gear.own) o.gear = d.gear;
+  return o;
 }
 let S = load();
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return Object.assign(defaults(), JSON.parse(raw));
+    if (raw) return migrate(Object.assign(defaults(), JSON.parse(raw)));
     const old = localStorage.getItem('rht.v1');   // version 1.0 data
-    if (old) { const o = JSON.parse(old), d = defaults(); ['name', 'yv', 'goal', 'target', 'logs', 'ul', 'ideas', 'pin', 'salt', 'lockAfter', 'sound', 'vib'].forEach(k => { if (o[k] !== undefined) d[k] = o[k]; }); d.done = !!o.done; return d; }
+    if (old) { const o = JSON.parse(old), d = defaults(); ['name', 'yv', 'goal', 'target', 'logs', 'ul', 'ideas', 'pin', 'salt', 'lockAfter', 'sound', 'vib'].forEach(k => { if (o[k] !== undefined) d[k] = o[k]; }); d.done = !!o.done; d.v = 1; return migrate(d); }
   } catch (e) {}
   return defaults();
 }
@@ -62,27 +74,55 @@ function when(t) {
 }
 const hr12 = h => (h % 12 || 12) + (h >= 12 ? ' pm' : ' am');
 
-/* ---------- scoring ---------- */
-const dv = () => S.yv * 2;
+/* ---------- Nemesis Cash, levels and learning ---------- */
+const fmt = n => (n < 0 ? '−' : '') + Math.abs(Math.round(n)).toLocaleString('en-US');
+const kfmt = n => Math.abs(n) >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n);
+const r100 = v => Math.max(100, Math.round(v / 100) * 100);
+const has = id => S.gear.own.indexOf(id) >= 0;
+const TIER = ['Easy', 'Normal', 'Hard', 'Very hard'], TIERW = ['Calm hour', 'Steady hour', 'Hard hour', 'Danger hour'];
+function tierValues(t) { const B = S.base; return [{ d: r100(B), y: r100(B * 1.5) }, { d: r100(B * 2), y: r100(B) }, { d: r100(B * 3), y: r100(B / 2) }, { d: r100(B * 4), y: r100(B / 2) }][t]; }
+function valuesNow(t) { const v = tierValues(t), o = { d: v.d, y: v.y }; if (has('weights') && t >= 2) o.d += 100; if (has('heart')) o.y = Math.max(100, o.y - 100); return o; }
+const PRIOR = h => (h >= 22 || h < 4) ? 0.7 : h < 8 ? 0.5 : h < 16 ? 0.15 : h < 18 ? 0.3 : 0.5;
+function riskAt(t) {
+  const d = new Date(t), h = d.getHours(), wd = d.getDay(); let y = 0, n = 0, wy = 0, wn = 0;
+  if (S.learn) S.logs.forEach(l => { const x = new Date(l.t), dh = Math.min((x.getHours() - h + 24) % 24, (h - x.getHours() + 24) % 24); if (dh <= 1) { n++; if (l.k === 'y') y++; } if (x.getDay() === wd) { wn++; if (l.k === 'y') wy++; } });
+  const rh = (y + 3 * PRIOR(h)) / (n + 3), rw = (wy + 3 * 0.3) / (wn + 3);
+  return { r: 0.75 * rh + 0.25 * rw, learned: n + wn >= 12 };
+}
+const tierOf = r => r < 0.2 ? 0 : r < 0.4 ? 1 : r < 0.59 ? 2 : 3;
+const tierNow = t => { const x = riskAt(t || Date.now()); return { tier: tierOf(x.r), r: x.r, learned: x.learned }; };
+const needAt = L => L <= 1 ? 0 : Math.round(550 * Math.pow(L - 1, 1.2) / 100) * 100;
+function levelOf(e) { let L = Math.min(999, Math.floor(Math.pow(e / 550, 1 / 1.2)) + 1); while (L < 999 && needAt(L + 1) <= e) L++; while (L > 1 && needAt(L) > e) L--; return L; }
+const RANKS = [[1, 'Newborn'], [4, 'Child'], [16, 'Young Prince'], [41, 'Trained Prince'], [81, 'Squire Knight'], [151, 'Knight'], [261, 'Champion'], [401, 'Warlord'], [601, 'Emperor'], [851, 'Immortal Legend']];
+const rankName = l => RANKS.filter(r => r[0] <= l).pop()[1];
+const nextRank = l => { const r = RANKS.find(x => x[0] > l); return r ? r[1] : null; };
+const ucw = id => { const c = S.ucats.find(x => x.id === id) || S.ucats.find(x => x.id === 'oth'); return c ? c.w : 1; };
 function build() {
-  const I = {}, g = k => I[k] || (I[k] = { d: 0, y: 0, m: 0, hasUl: false });
-  S.logs.forEach(l => { const o = g(dk(l.t)); if (l.k === 'd') o.d++; else o.y++; });
-  S.ul.forEach(u => { const o = g(dk(u.t)); o.m += u.m; o.hasUl = true; });
+  const I = {}, g = k => I[k] || (I[k] = { d: 0, y: 0, m: 0, e: 0, c: 0, hasUl: false });
+  S.logs.forEach(l => { const o = g(dk(l.t)); if (l.k === 'd') o.d++; else o.y++; o.c += l.p; });
+  S.ul.forEach(u => { const o = g(dk(u.t)); o.m += u.m; o.e += u.m * ucw(u.c); o.hasUl = true; });
   return I;
 }
-const ulScore = o => (o && o.hasUl) ? Math.round(Math.max(0, Math.min(1, (S.target - o.m) / S.target)) * 10) : 0;
-const score = o => o ? o.d * dv() - o.y * S.yv + ulScore(o) : 0;
+const ulScore = o => (o && o.hasUl) ? Math.round(Math.max(0, Math.min(1, (S.target - o.e) / S.target)) * 10) : 0;
+const ulBonus = o => ulScore(o) * 50;
+const score = o => o ? o.c + ulBonus(o) : 0;
+function ledger() {   // cash balance never goes below zero; the Unplug bonus of a day is paid when the day is over
+  const I = build(), ev = []; let earned = 0, T = todayK();
+  S.logs.forEach(l => { ev.push([l.t, l.p]); if (l.p > 0) earned += l.p; });
+  Object.keys(I).forEach(k => { if (k >= T) return; const b = ulBonus(I[k]); if (b) { ev.push([fromKey(k).getTime() + 86399000, b]); earned += b; } });
+  S.buys.forEach(b => ev.push([b.t, -b.cost]));
+  ev.sort((a, b) => a[0] - b[0]); let bal = 0; ev.forEach(e => { bal = Math.max(0, bal + e[1]); });
+  return { earned, bal };
+}
 function stats() {
-  const I = build(), keys = Object.keys(I).sort(); let total = 0, best = 0, D = 0, Y = 0;
-  keys.forEach(k => { const s = score(I[k]); total += Math.max(0, s); best = Math.max(best, s); D += I[k].d; Y += I[k].y; });
+  const I = build(), keys = Object.keys(I).sort(), L = ledger(); let best = 0, D = 0, Y = 0;
+  keys.forEach(k => { best = Math.max(best, score(I[k])); D += I[k].d; Y += I[k].y; });
   let streak = 0, k = todayK(); if (!(I[k] && score(I[k]) > 0)) k = addDays(k, -1);
   while (I[k] && score(I[k]) > 0) { streak++; k = addDays(k, -1); }
   const clear = keys.filter(x => I[x].d > 0 && I[x].y === 0).length;
-  const lvl = Math.floor(Math.sqrt(total / 12)) + 1, cur = Math.pow(lvl - 1, 2) * 12, nxt = Math.pow(lvl, 2) * 12;
-  return { I, total, best, D, Y, streak, clear, lvl, prog: (total - cur) / (nxt - cur), toNext: Math.ceil(nxt - total) };
+  const lvl = levelOf(L.earned), cur = needAt(lvl), nxt = needAt(lvl + 1);
+  return { I, earned: L.earned, bal: L.bal, best, D, Y, streak, clear, lvl, prog: lvl >= 999 ? 1 : (L.earned - cur) / (nxt - cur), toNext: lvl >= 999 ? 0 : nxt - L.earned };
 }
-const LVL = ['Seed', 'Sprout', 'Sapling', 'Young tree', 'Strong tree', 'Oak', 'Forest', 'Mountain', 'Sky', 'Star'];
-const lvlName = n => LVL[Math.min(n - 1, LVL.length - 1)];
 const weekDays = k => { const I = build(), s = weekStart(k); return [0, 1, 2, 3, 4, 5, 6].map(i => { const d = addDays(s, i); return { k: d, o: I[d] }; }); };
 
 /* ---------- kind words ---------- */
@@ -120,13 +160,14 @@ function confirmSheet(o) {
 
 /* ---------- actions ---------- */
 function logHab(k, viaRescue) {
-  const l = { id: Date.now() + Math.random(), t: Date.now(), k }; if (viaRescue) l.r = 1; S.logs.push(l); save();
-  if (k === 'd') { tone(660, .35); setTimeout(() => tone(880, .4), 150); vib(18); render(); say(pick(KIND_D) + ' +' + dv()); }
-  else { tone(300, .5, .05); vib([30, 60, 30]); render(); yieldSheet(); }
+  const tn = tierNow(), v = valuesNow(tn.tier); let p = k === 'd' ? v.d : -v.y; if (k === 'd' && viaRescue && has('potion')) p += 100;
+  const l = { id: Date.now() + Math.random(), t: Date.now(), k, p, tier: tn.tier }; if (viaRescue) l.r = 1; S.logs.push(l); save();
+  if (k === 'd') { tone(660, .35); setTimeout(() => tone(880, .4), 150); vib(18); render(); say(pick(KIND_D) + ' +' + fmt(p) + ' Nemesis Cash'); }
+  else { tone(300, .5, .05); vib([30, 60, 30]); render(); yieldSheet(p); }
 }
-function yieldSheet() {
+function yieldSheet(p) {
   const h = new Date().getHours(), late = h >= 16 || h < 5;
-  sheet(`<h2>It happened</h2><p>${esc(pick(KIND_Y))}</p><div class="card" style="margin:0 0 12px"><div class="hint">Try this now</div><div style="margin-top:6px;font-size:1.5rem;font-weight:300">${esc(pick(TIPS))}</div></div>${late ? '<p>Evenings and nights are the hardest hours. Charge your phone away from your bed tonight.</p>' : ''}<div class="modal-actions"><button class="btn-quiet hb" id="y2">Close</button><button class="btn-primary hb" id="y1">${svg('wind')}Start Urge Rescue</button></div>`);
+  sheet(`<h2>It happened</h2><p>${esc(pick(KIND_Y))} <b>${fmt(p || 0)}</b> Nemesis Cash.</p><div class="card" style="margin:0 0 12px"><div class="hint">Try this now</div><div style="margin-top:6px;font-size:1.5rem;font-weight:300">${esc(pick(TIPS))}</div></div>${late ? '<p>Evenings and nights are the hardest hours. Charge your phone away from your bed tonight.</p>' : ''}<div class="modal-actions"><button class="btn-quiet hb" id="y2">Close</button><button class="btn-primary hb" id="y1">${svg('wind')}Start Urge Rescue</button></div>`);
   $('#y1').onclick = () => { closeSheet(); rescue(); }; $('#y2').onclick = closeSheet;
 }
 function rescue() {
@@ -149,9 +190,9 @@ function delEntry(list, id, label) {
   } });
 }
 function addUl(m) {
-  S.ul.push({ id: Date.now() + Math.random(), t: Date.now(), m }); save(); tone(520, .3); vib(12); render();
-  const o = build()[todayK()], left = S.target - o.m;
-  say(left > 0 ? 'Added. ' + left + ' minutes left before your daily limit.' : 'Over the limit today. Tomorrow is a fresh page.');
+  S.ul.push({ id: Date.now() + Math.random(), t: Date.now(), m, c: ucSel || 'oth' }); save(); tone(520, .3); vib(12); render();
+  const o = build()[todayK()], left = Math.round(S.target - o.e);
+  say(left > 0 ? 'Added. ' + left + ' weighted minutes left before your daily limit.' : 'Over the limit today. Tomorrow is a fresh page.');
 }
 function customMinutes() {
   sheet(`<h2>Minutes of screen time</h2><p>Add the minutes you spent on pointless videos, browsing or pictures.</p><label class="field"><span>Minutes</span><input id="um" type="number" inputmode="numeric" min="1" placeholder="0"></label><div class="modal-actions"><button class="btn-line hb" id="un">Cancel</button><button class="btn-primary hb" id="uy">Add</button></div>`);
@@ -233,7 +274,7 @@ $('#file-restore').addEventListener('change', e => {
   r.onload = () => {
     let o; try { o = JSON.parse(r.result); } catch (x) { say('That file is not a valid backup.'); return; }
     const finish = d => { if (!d || !Array.isArray(d.logs)) { say('That file is not a valid backup.'); return; }
-      confirmSheet({ title: 'Replace your data?', text: 'Your current entries will be replaced by this copy.', yes: 'Replace', danger: true, fn() { S = Object.assign(defaults(), d); save(); apply(); render(); say('Backup restored.'); } }); };
+      confirmSheet({ title: 'Replace your data?', text: 'Your current entries will be replaced by this copy.', yes: 'Replace', danger: true, fn() { S = migrate(Object.assign(defaults(), d)); save(); apply(); render(); say('Backup restored.'); } }); };
     if (o && o.enc) {
       sheet(`<h2>Open backup</h2><label class="field"><span>Passphrase</span><input id="rp" type="password" autocomplete="off"></label><div class="error" id="re"></div><div class="modal-actions"><button class="btn-line hb" id="rn">Cancel</button><button class="btn-primary hb" id="ry">Open</button></div>`);
       $('#rn').onclick = closeSheet;
@@ -262,43 +303,100 @@ function dangerInfo() {
   const n = c.reduce((a, b) => a + b, 0); return { c, n };
 }
 
+/* ---------- The Nemesis (the game screen) ---------- */
+const slotChip = id => { const it = G.CATALOG.find(c => c.id === S.gear.eq[id]); return `<span class="g-slot${it ? '' : ' e'}" title="${it ? esc(it.name) : 'Empty'}">${it ? G.sprite(it.sp, 22) : '+'}</span>`; };
 function viewToday() {
-  const st = stats(), k = todayK(), o = st.I[k] || { d: 0, y: 0, m: 0, hasUl: false }, sc = score(o), h = new Date().getHours(), dh = dangerInfo();
-  const hard = h >= 16 || h < 5;
-  let win = hard ? 'Hard hours: after 4 pm and late at night.' : 'Calm hours. A good time to plan your evening.';
-  if (dh.n >= 5) win = 'Your hardest hour is ' + hr12(dh.c.indexOf(Math.max.apply(null, dh.c))) + '. Plan something before it.';
-  const logs = S.logs.filter(l => dk(l.t) === k), uls = S.ul.filter(u => dk(u.t) === k);
-  const pct = Math.min(1, o.m / S.target), over = o.m > S.target;
+  const st = stats(), k = todayK(), o = st.I[k] || { d: 0, y: 0, m: 0, e: 0, c: 0, hasUl: false }, tn = tierNow(), vv = valuesNow(tn.tier);
+  const net = o.c, pct = Math.max(0, Math.min(1, net / S.goal)), state = net >= S.goal ? 2 : pct >= 0.5 ? 1 : 0, C = 2 * Math.PI * 138;
+  const perks = S.gear.own.filter(i => (G.CATALOG.find(c => c.id === i) || {}).slot === 'perk').length;
+  const logs = S.logs.filter(l => dk(l.t) === k).sort((a, b) => b.t - a.t);
+  const nx = nextRank(st.lvl);
+  let out = `<div class="g-hud"><button class="g-av" data-to="arm" aria-label="Open the Armoury" title="Open the Armoury">${G.hero(st.lvl, S.gear.eq)}<span class="g-lv">Lv ${st.lvl} / 999</span></button>
+    <div class="g-hi"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999 · ${fmt(st.earned)} earned</div>
+    <div class="g-xp"><i style="width:${Math.round(Math.max(0, Math.min(1, st.prog)) * 100)}%"></i></div><div class="g-xl"><span>${st.lvl >= 999 ? 'Highest level' : 'Level ' + (st.lvl + 1) + (nx && RANKS.some(r => r[0] === st.lvl + 1) ? ': ' + nx : '')}</span><span>${fmt(st.toNext)} to go</span></div>
+    <div class="g-slots">${slotChip('head')}${slotChip('rhand')}${slotChip('lhand')}<span class="g-slot e" title="Perks">${perks ? perks : '+'}</span></div></div>
+    <button class="cc orb g-orb" aria-label="Companion. Tap for a tip." title="Tap for a tip"><i></i></button></div>
+    <button class="g-cash" data-to="arm" aria-label="Open the Armoury">◈ ${fmt(st.bal)} Nemesis Cash</button>`;
+  out += `<div class="g-arena"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="138" fill="rgba(8,14,36,.62)" stroke="#0a1230" stroke-width="14"/><circle cx="150" cy="150" r="138" fill="none" stroke="#17305f" stroke-width="8"/>
+    <circle cx="150" cy="150" r="138" fill="none" stroke="#5ad7ff" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(pct * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 150 150)" style="transition:stroke-dasharray 1.1s ease"/><circle cx="150" cy="150" r="118" fill="none" stroke="rgba(154,123,255,.5)" stroke-width="1.5" stroke-dasharray="3 7"/></svg>
+    <div class="g-cre">${G.nemesis(state)}</div><div class="g-prog">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today</div></div>
+    <div class="g-threat">${TIERW[tn.tier]} · Ducked ${tn.tier >= 2 ? '▲' : tn.tier === 0 ? '▼' : '–'} Yielded ${tn.tier >= 2 ? '▼' : tn.tier === 0 ? '▲' : '–'}</div><div class="g-why">${tn.learned ? 'Learned from your own days.' : 'From the usual pattern. It learns as you log.'}</div>
+    <div class="g-btns"><button class="g-btn d" id="bd">Ducked<small>+${fmt(vv.d)}</small></button><button class="g-btn y" id="by">Yielded<small>−${fmt(vv.y)}</small></button></div>
+    <button class="g-btn q" id="br">${svg('wind')}Urge Rescue${has('potion') ? ' · +100' : ''}</button>
+    <div class="g-chips"><span class="g-chip">${svg('flame')}${st.streak} day streak</span><span class="g-chip">Ducked ${o.d} · Yielded ${o.y}</span></div>`;
+  if (logs.length) {
+    out += `<div class="g-card"><details><summary>Today's entries · ${logs.length}</summary><div style="margin-top:8px">${logs.map(l => { const d = l.k === 'd'; return `<div class="g-log"><span class="t">${clock(l.t)}</span><span class="n">${d ? 'Ducked' + (l.r ? ' (rescue)' : '') : 'Yielded'}</span><span class="p ${d ? 'pos' : 'neg'}">${l.p > 0 ? '+' : '−'}${fmt(Math.abs(l.p))}</span><button class="g-del" data-dl="${l.id}" title="Delete" aria-label="Delete entry">${svg('trash')}</button></div>`; }).join('')}</div></details></div>`;
+  }
+  return out;
+}
+
+/* ---------- Armoury ---------- */
+function buyItem(id) {
+  const it = G.CATALOG.find(c => c.id === id), st = stats(); if (!it || has(id)) return;
+  if (st.lvl < it.level) { say('You need level ' + it.level + ' for this.'); return; }
+  if (st.bal < it.price) { say('You need ◈ ' + fmt(it.price - st.bal) + ' more.'); return; }
+  const b = { id: 'b' + Date.now(), t: Date.now(), item: id, cost: it.price }, had = S.gear.eq[it.slot];
+  S.buys.push(b); S.gear.own.push(id); if (it.slot !== 'perk' && !had) S.gear.eq[it.slot] = id; save(); tone(740, .3); setTimeout(() => tone(990, .45), 140); vib([20, 40, 20]); render();
+  say(it.name + ' is yours.', () => { S.buys = S.buys.filter(x => x.id !== b.id); S.gear.own = S.gear.own.filter(x => x !== id); if (S.gear.eq[it.slot] === id) delete S.gear.eq[it.slot]; save(); });
+}
+function equipItem(id, on) {
+  const it = G.CATALOG.find(c => c.id === id); if (!it || !has(id) || it.slot === 'perk') return;
+  if (on) S.gear.eq[it.slot] = id; else delete S.gear.eq[it.slot]; save(); tone(on ? 620 : 420, .2); vib(10); render();
+}
+function viewArmoury() {
+  const st = stats(), eq = S.gear.eq, perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
+  let out = `<div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-cashline">◈ ${fmt(st.bal)} Nemesis Cash</div><div class="g-sub">Your level follows the cash you earn, never the cash you spend.</div></div></div>`;
+  if (perks.length) out += `<div class="g-card"><div class="g-cap">Active perks</div>${perks.map(p => `<div class="g-perk">${G.sprite(p.sp, 28)}<span><b>${esc(p.name)}</b><br><small>${esc(p.perk)}</small></span></div>`).join('')}</div>`;
+  out += `<div class="g-cap" style="margin:14px 4px 8px">Armoury</div><div class="g-shop">`;
+  G.CATALOG.slice().sort((a, b) => a.level - b.level).forEach(it => {
+    const own = has(it.id), worn = eq[it.slot] === it.id && it.slot !== 'perk', locked = st.lvl < it.level, afford = st.bal >= it.price;
+    let act;
+    if (own) act = it.slot === 'perk' ? '<span class="g-own">Active</span>' : worn ? `<button class="g-btn q sm" data-ueq="${it.id}">Take off</button>` : `<button class="g-btn p sm" data-eq="${it.id}">Wear</button>`;
+    else if (locked) act = `<span class="g-lock">Level ${it.level}</span>`;
+    else act = `<button class="g-btn p sm${afford ? '' : ' off'}" data-buy="${it.id}">Buy · ◈ ${fmt(it.price)}</button>`;
+    out += `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked ? ' locked' : ''}">${G.sprite(it.sp, 52)}<div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk' : G.SLOTS[it.slot]}${own ? '' : ' · ◈ ' + fmt(it.price)}</div>${act}</div>`;
+  });
+  return out + '</div>';
+}
+
+/* ---------- Unplug ---------- */
+let ucSel = null;
+function ucSuggest() {
+  const out = [], yl = S.logs.filter(l => l.k === 'y').map(l => l.t); if (S.ul.length < 6) return out;
+  const hit = e => yl.some(t => t > e.t && t - e.t <= 3 * 36e5), all = S.ul.filter(e => e.m > 0), base = all.length ? all.filter(hit).length / all.length : 0;
+  S.ucats.forEach(c => {
+    const es = all.filter(e => (e.c || 'oth') === c.id); if (es.length < 4) return; const r = es.filter(hit).length / es.length;
+    const dir = r >= base + 0.25 ? 'u' : r <= base - 0.25 ? 'd' : ''; if (!dir) return;
+    if (S.dismiss[c.id + dir] && Date.now() - S.dismiss[c.id + dir] < 14 * 864e5) return;
+    if (dir === 'u' && c.w < 3) out.push({ c, dir, r, n: es.length, to: Math.min(3, c.w + 0.5) }); else if (dir === 'd' && c.w > 0.5) out.push({ c, dir, r, n: es.length, to: Math.max(0.5, c.w - 0.5) });
+  });
+  return out;
+}
+function viewUnplug() {
+  const k = todayK(), I = build(), o = I[k] || { d: 0, y: 0, m: 0, e: 0, c: 0, hasUl: false };
+  if (!ucSel || !S.ucats.find(c => c.id === ucSel)) ucSel = S.ucats[0].id;
+  const eff = Math.round(o.e), pct = Math.min(1, eff / S.target), over = eff > S.target;
   const prevS = addDays(weekStart(k), -7); let pm = 0, pAny = false, ws = 0;
-  weekDays(prevS).forEach(x => { if (x.o && x.o.hasUl) { pm += x.o.m; pAny = true; } });
-  weekDays(k).forEach(x => { if (x.o && x.o.hasUl) ws += x.o.m; });
-  const wT = pAny ? Math.round(pm * 0.9) : S.target * 7;
-  let out = `<div class="hint" style="margin:0 4px 10px">${greet()}</div>`;
-  out += `<div class="card"><div class="hb-cap">Points today</div><div class="hb-row"><div class="hb-grow"><div class="hb-big">${sc}<small>of ${S.goal}</small></div>
-    <div class="hb-chips"><span class="hb-chip">${svg('flame')}${st.streak} day streak</span><span class="hb-chip">${svg('star')}Level ${st.lvl} · ${lvlName(st.lvl)}</span></div></div>
-    <div class="hb-ring">${arc(sc / S.goal, 'var(--blue-b)')}<div class="ct">${Math.round(Math.max(0, sc) / S.goal * 100)}%</div></div></div>
-    <div class="hint" style="margin-top:12px">${st.toNext} points to the next level</div><div class="hb-bar"><i style="width:${Math.round(st.prog * 100)}%"></i></div></div>`;
-  out += `<div class="card"><div class="flex-between"><h3 style="margin:0">The Nemesis</h3><span class="hint">Resist +${dv()} · Yield −${S.yv}</span></div>
-    <div class="hb-actions"><button class="btn-primary hb hb-main" id="bd">Ducked</button><button class="btn-quiet hb hb-main" id="by">Yielded</button></div>
-    <div class="hb-meta"><span class="hb-pos">Ducked ${o.d}</span><span style="text-align:center">${esc(win)}</span><span class="hb-neg">Yielded ${o.y}</span></div>
-    <button class="btn-line hb hb-full" id="br">${svg('wind')}Urge Rescue</button></div>`;
-  out += `<div class="card wd-card"><div class="wd-cap">Unplug</div><div class="wd-main"><span class="wd-it">${svg('phone', 'stroke="#fff" width="22" height="22"')}</span>
-    <div class="wd-mid"><div class="wd-big">${o.m}</div><div class="wd-un">of ${S.target} minutes of pointless screen time</div></div>
+  weekDays(prevS).forEach(x => { if (x.o && x.o.hasUl) { pm += x.o.e; pAny = true; } }); weekDays(k).forEach(x => { if (x.o && x.o.hasUl) ws += x.o.e; });
+  const wT = pAny ? Math.round(pm * 0.9) : S.target * 7; ws = Math.round(ws);
+  const uls = S.ul.filter(u => dk(u.t) === k).sort((a, b) => b.t - a.t), sg = ucSuggest();
+  const catName = id => (S.ucats.find(c => c.id === id) || { n: 'Other' }).n;
+  let out = `<div class="card wd-card"><div class="wd-cap">Unplug</div><div class="wd-main"><span class="wd-it">${svg('phone', 'stroke="#fff" width="22" height="22"')}</span>
+    <div class="wd-mid"><div class="wd-big">${eff}</div><div class="wd-un">of ${S.target} weighted minutes of pointless screen time (${Math.round(o.m)} real)</div></div>
     <div class="hb-ring" style="width:52px;height:52px">${arc(pct, over ? '#d23b34' : 'var(--blue-b)')}</div></div>
     <div class="hb-bar ${over ? 'r' : ''}"><i style="width:${Math.round(pct * 100)}%"></i></div>
-    <div class="hb-chiprow"><button class="mini-btn" data-ul="15">+15</button><button class="mini-btn" data-ul="30">+30</button><button class="mini-btn" data-ul="60">+60</button><button class="btn-quiet mini-btn" id="ulc">Other</button><button class="btn-quiet mini-btn" id="ulz">Zero today</button></div>
-    <div class="wd-sub"><span>This week: ${ws} of ${wT} minutes</span><b>${pAny ? '10% below last week' : 'first week target'}</b></div>
-    <div class="hb-bar ${ws > wT ? 'r' : 'g'}"><i style="width:${Math.min(100, Math.round(ws / Math.max(1, wT) * 100))}%"></i></div>
-    <div class="hint" style="margin-top:8px">Unplug score today: ${o.hasUl ? ulScore(o) : 0} of 10</div></div>`;
-  if (logs.length || uls.length) {
-    const all = logs.map(l => ({ t: l.t, l })).concat(uls.map(u => ({ t: u.t, u }))).sort((a, b) => b.t - a.t);
-    out += `<div class="card"><details><summary class="hint" style="cursor:pointer">Today's entries · ${all.length}</summary><div style="margin-top:8px">`;
-    all.forEach(x => {
-      if (x.l) { const d = x.l.k === 'd'; out += `<div class="hb-log"><span class="t">${clock(x.t)}</span><span class="n">${d ? 'Ducked' + (x.l.r ? ' (rescue)' : '') : 'Yielded'}</span><span class="p ${d ? 'hb-pos' : 'hb-neg'}">${d ? '+' + dv() : '−' + S.yv}</span><button class="ico-btn ico-del" data-dl="${x.l.id}" title="Delete" aria-label="Delete entry">${svg('trash')}</button></div>`; }
-      else out += `<div class="hb-log"><span class="t">${clock(x.t)}</span><span class="n">Screen time</span><span class="p">${x.u.m} min</span><button class="ico-btn ico-del" data-du="${x.u.id}" title="Delete" aria-label="Delete entry">${svg('trash')}</button></div>`;
-    });
-    out += '</div></details></div>';
-  }
+    <div class="hint" style="margin-top:8px">Bonus when today ends: ◈ ${fmt(ulBonus(o))} of 500. Under the limit earns more.</div></div>`;
+  out += `<div class="card"><h3>Log screen time</h3><div class="hint">Choose what you were doing, then add the minutes.</div><div class="hb-chiprow">${S.ucats.map(c => `<button class="mini-btn${c.id === ucSel ? ' on' : ''}" data-uc="${c.id}" aria-pressed="${c.id === ucSel}">${esc(c.n)}${c.w !== 1 ? ' ×' + c.w : ''}</button>`).join('')}</div>
+    <div class="hb-chiprow"><button class="mini-btn" data-ul="15">+15</button><button class="mini-btn" data-ul="30">+30</button><button class="mini-btn" data-ul="60">+60</button><button class="btn-quiet mini-btn" id="ulc">Other</button><button class="btn-quiet mini-btn" id="ulz">Zero today</button></div></div>`;
+  sg.forEach(s => {
+    out += `<div class="card"><div class="hb-cap">A suggestion</div><div>${s.dir === 'u' ? 'After' : 'After'} ${esc(s.c.n)}, you yielded within three hours ${Math.round(s.r * 100)}% of the time (${s.n} entries). ${s.dir === 'u' ? 'It may count for more.' : 'It may count for less.'}</div>
+      <div class="hb-actions" style="margin:12px 0 0"><button class="btn-quiet hb" data-sg="${s.c.id}:${s.dir}:no">Not now</button><button class="btn-primary hb" data-sg="${s.c.id}:${s.dir}:ok:${s.to}">Change weight to ×${s.to}</button></div></div>`;
+  });
+  out += `<div class="card"><div class="hb-cap">This week</div><div class="wd-sub" style="margin-top:0"><span>${ws} of ${wT} weighted minutes</span><b>${pAny ? '10% below last week' : 'first week target'}</b></div><div class="hb-bar ${ws > wT ? 'r' : 'g'}"><i style="width:${Math.min(100, Math.round(ws / Math.max(1, wT) * 100))}%"></i></div></div>`;
+  if (uls.length) out += `<div class="card"><details open><summary class="hint" style="cursor:pointer">Today's entries · ${uls.length}</summary><div style="margin-top:8px">${uls.map(u => `<div class="hb-log"><span class="t">${clock(u.t)}</span><span class="n">${esc(catName(u.c))}</span><span class="p">${u.m} min</span><button class="ico-btn ico-del" data-du="${u.id}" title="Delete" aria-label="Delete entry">${svg('trash')}</button></div>`).join('')}</div></details></div>`;
+  out += `<div class="card"><details><summary class="hint" style="cursor:pointer">Categories and weights</summary><p class="hint" style="margin:8px 0">A weight of ×2 means each minute counts double towards your limit. The app suggests changes as it learns.</p>
+    ${S.ucats.map(c => `<div class="sw-row"><span>${esc(c.n)}</span><div class="hb-stepper"><button class="mini-btn" data-cw="${c.id}" data-d="-1" aria-label="Lower weight">−</button><b>×${c.w}</b><button class="mini-btn" data-cw="${c.id}" data-d="1" aria-label="Raise weight">+</button>${c.id === 'oth' ? '' : `<button class="ico-btn ico-del" data-cdel="${c.id}" title="Delete" aria-label="Delete category">${svg('trash')}</button>`}</div></div>`).join('')}
+    <div class="hb-add"><input id="cn" maxlength="20" placeholder="New category"><button class="btn-primary hb" id="cadd">Add</button></div></details></div>`;
   return out;
 }
 
@@ -309,8 +407,8 @@ function viewProgress() {
     const days = weekDays(k), prev = weekDays(addDays(weekStart(k), -7)), n = days.filter(x => x.k <= k).length; let tot = 0, ptot = 0, mx = 1;
     days.forEach(x => { const s = score(x.o); tot += s; mx = Math.max(mx, Math.abs(s)); }); prev.forEach((x, i) => { if (i < n) ptot += score(x.o); });
     const diff = tot - ptot, L = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    out += `<div class="card"><div class="hb-cap">This week</div><div class="hb-row"><div class="hb-big">${tot}<small>points</small></div><div class="hint hb-grow" style="text-align:right;color:${diff >= 0 ? '#1f9d63' : 'var(--warning)'}">${diff === 0 ? '– same as last week' : (diff > 0 ? '▲ ' : '▼ ') + Math.abs(diff) + ' vs same days last week'}</div></div>
-      <div class="hb-wk">${days.map((x, i) => { const s = score(x.o), hh = s === 0 ? 4 : Math.round(Math.abs(s) / mx * 88) + 4; return `<div><span>${s || ''}</span><b class="${s < 0 ? 'n' : s === 0 ? 'z' : ''}" style="height:${hh}px"></b>${L[i]}</div>`; }).join('')}</div></div>`;
+    out += `<div class="card"><div class="hb-cap">This week</div><div class="hb-row"><div class="hb-big">${tot}<small>cash</small></div><div class="hint hb-grow" style="text-align:right;color:${diff >= 0 ? '#1f9d63' : 'var(--warning)'}">${diff === 0 ? '– same as last week' : (diff > 0 ? '▲ ' : '▼ ') + Math.abs(diff) + ' vs same days last week'}</div></div>
+      <div class="hb-wk">${days.map((x, i) => { const s = score(x.o), hh = s === 0 ? 4 : Math.round(Math.abs(s) / mx * 88) + 4; return `<div><span>${s ? kfmt(s) : ''}</span><b class="${s < 0 ? 'n' : s === 0 ? 'z' : ''}" style="height:${hh}px"></b>${L[i]}</div>`; }).join('')}</div></div>`;
   } else {
     const d0 = fromKey(k); d0.setDate(1); d0.setMonth(d0.getMonth() + monthOff);
     const y = d0.getFullYear(), m = d0.getMonth(), dim = new Date(y, m + 1, 0).getDate(), off = (d0.getDay() + 6) % 7; let mt = 0, mD = 0, mY = 0;
@@ -322,7 +420,7 @@ function viewProgress() {
     }
     const mn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m];
     out += `<div class="card"><div class="hb-nav"><button class="ico-btn" id="mp" aria-label="Previous month" title="Previous month">${svg('left')}</button><h3 style="margin:0">${mn} ${y}</h3><button class="ico-btn" id="mn" aria-label="Next month" title="Next month" ${monthOff >= 0 ? 'disabled style="opacity:.35"' : ''}>${svg('right')}</button></div>
-      <div class="hb-row" style="margin:14px 0 4px"><div class="hb-big">${mt}<small>points</small></div></div><div class="hint">Ducked ${mD} · Yielded ${mY}</div><div class="hb-cal">${cells}</div>
+      <div class="hb-row" style="margin:14px 0 4px"><div class="hb-big">${mt}<small>cash</small></div></div><div class="hint">Ducked ${mD} · Yielded ${mY}</div><div class="hb-cal">${cells}</div>
       <div class="hint" style="margin-top:12px">Darker green is a stronger day. Red is a day that lost points.</div></div>`;
   }
   const rate = st.D + st.Y ? Math.round(st.D / (st.D + st.Y) * 100) : 0;
@@ -333,12 +431,15 @@ function viewProgress() {
   const mxh = Math.max(1, Math.max.apply(null, hc), Math.max.apply(null, hd));
   out += `<div class="card"><h3>Your hours</h3><div class="hint">When you resisted and when you gave in. The app learns your hard hours from this.</div><div class="hb-hours">${hc.map((c, i) => `<div><u style="height:${Math.round(hd[i] / mxh * 38)}px"></u><i style="height:${Math.round(c / mxh * 48)}px"></i></div>`).join('')}</div>
     <div class="hb-lbls"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>11 pm</span></div><div class="hint" style="margin-top:10px"><span class="hb-pos">■</span> resisted &nbsp; <span class="hb-neg">■</span> yielded</div></div>`;
+  const BK = [[1, '12 am to 4 am'], [5, '4 am to 8 am'], [9, '8 am to 12 pm'], [13, '12 pm to 4 pm'], [17, '4 pm to 8 pm'], [21, '8 pm to 12 am']];
+  out += `<div class="card"><h3>How the app sees your day</h3><div class="hint">Hard hours pay more for Ducked and cost less for Yielded. Easy hours do the opposite. ${S.learn ? 'It learns from your own entries.' : 'Learning is switched off, so it uses the usual pattern.'}</div><div style="margin-top:8px">${BK.map(b => { const dd = new Date(); dd.setHours(b[0], 30, 0, 0); const x = riskAt(dd.getTime()), t = tierOf(x.r), v = tierValues(t);
+    return `<div class="hb-log"><span class="n">${b[1]}</span><span class="hb-chip" style="height:24px">${TIER[t]}</span><span class="p hb-pos" style="min-width:auto">+${fmt(v.d)}</span><span class="p hb-neg" style="min-width:auto">−${fmt(v.y)}</span></div>`; }).join('')}</div></div>`;
   return out;
 }
 
 /* ---------- Settings (Apple-like: state first, then rows; one page per group) ---------- */
 const swRow = (k, t, d) => `<div class="sw-row"><div><div>${t}</div>${d ? `<div class="set-meta">${d}</div>` : ''}</div><label class="switch"><input type="checkbox" data-pref="${k}" ${S[k] ? 'checked' : ''}><i></i></label></div>`;
-const stepRow = (k, t, d, u) => `<div class="sw-row"><div><div>${t}</div>${d ? `<div class="set-meta">${d}</div>` : ''}</div><div class="hb-stepper"><button class="mini-btn" data-st="${k}" data-d="-1" aria-label="Less">−</button><b>${S[k]}${u || ''}</b><button class="mini-btn" data-st="${k}" data-d="1" aria-label="More">+</button></div></div>`;
+const stepRow = (k, t, d, u, cash) => `<div class="sw-row"><div><div>${t}</div>${d ? `<div class="set-meta">${d}</div>` : ''}</div><div class="hb-stepper"><button class="mini-btn" data-st="${k}" data-d="-1" aria-label="Less">−</button><b>${cash ? fmt(S[k]) : S[k]}${u || ''}</b><button class="mini-btn" data-st="${k}" data-d="1" aria-label="More">+</button></div></div>`;
 const row = (go, ic, col, label, val) => `<button class="si-row" data-go="${go}">${siTile(ic, col)}<span class="si-l">${label}</span><span class="si-v">${val || ''}</span><svg class="si-ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC.right}</svg></button>`;
 const back = () => `<button class="si-back" data-go="top">${svg('left')}Settings</button>`;
 function daysSince(t) { return t ? Math.floor((Date.now() - t) / 86400000) : null; }
@@ -349,7 +450,7 @@ function viewSettings() {
       <div class="si-tiles"><button class="si-tile2" data-go="backup"><span class="si-cap">Backup</span><span class="si-big ${ds === null || ds > 7 ? 'warn' : ''}">${ds === null ? '–' : ds}<small>${ds === null ? '' : ds === 1 ? ' day' : ' days'}</small></span><span class="si-small">${ds === null ? 'no copy yet' : 'since your last copy'}</span><span class="si-foot">Tap to open</span></button>
       <button class="si-tile2" data-go="look"><span class="si-cap">Look</span><span class="si-dots"><i style="background:#f6f7fa"></i><i style="background:#17191d"></i><i style="background:linear-gradient(135deg,#5c9fe6,#3560bd)"></i><i style="background:linear-gradient(135deg,#f3d36e,#c9a43a)"></i></span><span class="si-small">${S.follow ? 'Follows your phone' : S.look === 'flagshipd' ? 'Dark' : 'Light'} · ${S.accent === 'gold' ? 'Champagne' : 'Sapphire'}</span><span class="si-foot">Tap to open</span></button></div>
       <div class="si-group">${row('look', 'palette', '#4a86dc', 'Appearance', S.accent === 'gold' ? 'Champagne' : 'Sapphire')}${row('sound', 'speaker', '#8e6bd8', 'Sound and feel', S.sound ? 'On' : 'Off')}</div>
-      <div class="si-group">${row('points', 'star', '#e0a03a', 'Points and limits', '+' + dv() + ' / −' + S.yv)}${row('future', 'list', '#2fa36b', 'Future habits', S.ideas.length ? String(S.ideas.length) : '')}</div>
+      <div class="si-group">${row('points', 'star', '#e0a03a', 'Cash and limits', fmt(tierValues(1).d) + ' / −' + fmt(tierValues(1).y))}${row('future', 'list', '#2fa36b', 'Future habits', S.ideas.length ? String(S.ideas.length) : '')}</div>
       <div class="si-group">${row('privacy', 'shield', '#d9534f', 'Privacy and security', S.pin ? 'PIN on' : 'No PIN')}${row('backup', 'disk', '#5a6a7e', 'Backup and data', '')}</div>
       <div class="si-erase"><button class="link-btn danger" id="erase">Erase everything…</button></div>
       <div class="si-foot-note">Rustam's Habit Tracker · Version ${VERSION}<br>All entries stay on this phone.</div>`;
@@ -361,7 +462,8 @@ function viewSettings() {
       <h3 style="margin-top:16px">Type</h3><div class="seg" id="fn"><button data-fn="system" class="${S.flFont === 'system' ? 'on' : ''}">System</button><button data-fn="inter" class="${S.flFont === 'inter' ? 'on' : ''}">Inter</button><button data-fn="manrope" class="${S.flFont === 'manrope' ? 'on' : ''}">Manrope</button></div></div>
       <div class="card">${swRow('glow', 'Faint inner glow', 'A soft light on the lower edge of cards')}</div>${window.GBtnLook ? GBtnLook.settingsHTML() : ''}`,
     sound: () => `<div class="si-title">Sound and feel</div><div class="card">${swRow('sound', 'Sounds', 'Short, soft tones')}${swRow('vib', 'Vibration', 'Gentle pulses')}</div>`,
-    points: () => `<div class="si-title">Points and limits</div><div class="card">${stepRow('yv', 'Cost of a Yielded', 'Ducked earns twice this: +' + dv())}${stepRow('goal', 'Daily points goal', 'Fills your ring')}${stepRow('target', 'Daily screen-time limit', 'Minutes of pointless screen time', ' min')}</div>`,
+    points: () => `<div class="si-title">Cash and limits</div><div class="card">${stepRow('base', 'Usual cost of a Yielded', 'Ducked pays twice this in steady hours', '', true)}${stepRow('goal', 'Daily cash goal', 'Fills the ring on The Nemesis', '', true)}${stepRow('target', 'Daily screen-time limit', 'Weighted minutes of pointless screen time', ' min')}</div>
+      <div class="card">${swRow('learn', 'Learn my hard times', 'Hard hours pay more and cost less. Easy hours do the opposite. Every value stays in hundreds.')}</div>`,
     future: () => `<div class="si-title">Future habits</div><div class="card"><p class="hint">Write habits you want to add later, such as exercise or sleep. We will add them one by one as you use the app.</p>
       ${S.ideas.map((t, i) => `<div class="hb-idea"><span>${esc(t)}</span><button class="ico-btn ico-del" data-di="${i}" title="Delete" aria-label="Delete idea">${svg('trash')}</button></div>`).join('')}
       <div class="hb-add"><input id="idn" maxlength="60" placeholder="For example: sleep by 10 pm"><button class="btn-primary hb" id="ida">Add</button></div></div>`,
@@ -379,15 +481,22 @@ function viewSettings() {
 function render() {
   $$('.screen').forEach(s => s.classList.remove('on')); const el = $('#s-' + screen); el.classList.add('on');
   const sy = window.scrollY;
-  el.innerHTML = screen === 'today' ? viewToday() : screen === 'prog' ? viewProgress() : viewSettings();
+  el.innerHTML = ({ today: viewToday, arm: viewArmoury, prog: viewProgress, unp: viewUnplug, set: viewSettings })[screen]();
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.s === screen));
-  $('#banner').style.display = screen === 'today' ? '' : 'none'; if (screen === 'today') renderBanner();
+  document.body.classList.toggle('game', screen === 'today' || screen === 'arm'); $('#banner').style.display = 'none';
   window.scrollTo(0, sy);
 }
 document.addEventListener('click', e => {
   const t = e.target, c = s => t.closest(s);
   let b;
   if ((b = c('.nav-item'))) { if (b.dataset.s === 'set' && screen === 'set') setPage = 'top'; screen = b.dataset.s; render(); window.scrollTo(0, 0); return; }
+  if ((b = c('[data-to]'))) { screen = b.dataset.to; render(); window.scrollTo(0, 0); return; }
+  if ((b = c('[data-buy]'))) return buyItem(b.dataset.buy); if ((b = c('[data-eq]'))) return equipItem(b.dataset.eq, true); if ((b = c('[data-ueq]'))) return equipItem(b.dataset.ueq, false);
+  if ((b = c('[data-uc]'))) { ucSel = b.dataset.uc; return render(); }
+  if ((b = c('[data-cw]'))) { const cc = S.ucats.find(x => x.id === b.dataset.cw); cc.w = Math.max(0.5, Math.min(3, cc.w + 0.5 * +b.dataset.d)); save(); return render(); }
+  if ((b = c('[data-cdel]'))) { S.ucats = S.ucats.filter(x => x.id !== b.dataset.cdel); if (ucSel === b.dataset.cdel) ucSel = null; save(); return render(); }
+  if (c('#cadd')) { const v = $('#cn').value.trim(); if (v) { S.ucats.push({ id: 'c' + Date.now(), n: v.slice(0, 20), w: 1 }); save(); render(); } return; }
+  if ((b = c('[data-sg]'))) { const p = b.dataset.sg.split(':'), cc = S.ucats.find(x => x.id === p[0]); if (p[2] === 'ok') { const was = cc.w; cc.w = +p[3]; save(); render(); say('Weight changed to ' + cc.w + '.', () => { cc.w = was; save(); }); } else { S.dismiss[p[0] + p[1]] = Date.now(); save(); render(); } return; }
   if (c('#bd')) return logHab('d'); if (c('#by')) return logHab('y'); if (c('#br')) return rescue();
   if ((b = c('[data-ul]'))) return addUl(+b.dataset.ul); if (c('#ulc')) return customMinutes(); if (c('#ulz')) return addUl(0);
   if ((b = c('[data-dl]'))) return delEntry('logs', +b.dataset.dl, 'It will be removed from your points.');
@@ -398,7 +507,7 @@ document.addEventListener('click', e => {
   if ((b = c('[data-lk]'))) { S.look = b.dataset.lk; save(); apply(); return render(); }
   if ((b = c('[data-ac]'))) { S.accent = b.dataset.ac; save(); apply(); return render(); }
   if ((b = c('[data-fn]'))) { S.flFont = b.dataset.fn; save(); apply(); return render(); }
-  if ((b = c('[data-st]'))) { const k = b.dataset.st, d = +b.dataset.d, stp = { yv: 1, goal: 5, target: 15, lockAfter: 5 }[k], lo = { yv: 1, goal: 5, target: 15, lockAfter: 0 }[k], hi = { yv: 5, goal: 200, target: 600, lockAfter: 300 }[k]; S[k] = Math.max(lo, Math.min(hi, S[k] + d * stp)); save(); return render(); }
+  if ((b = c('[data-st]'))) { const k = b.dataset.st, d = +b.dataset.d, T = { base: [200, 200, 600], goal: [500, 500, 10000], target: [15, 15, 600], lockAfter: [5, 0, 300] }[k]; S[k] = Math.max(T[1], Math.min(T[2], S[k] + d * T[0])); save(); return render(); }
   if ((b = c('[data-di]'))) { S.ideas.splice(+b.dataset.di, 1); save(); return render(); }
   if (c('#ida')) { const v = $('#idn').value.trim(); if (v) { S.ideas.push(v); save(); render(); } return; }
   if (c('#ps')) return setPin(render);
@@ -412,14 +521,14 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset && t.dataset.pref) { S[t.dataset.pref] = t.checked; save(); apply(); render(); }
 });
-$('#orb').addEventListener('click', () => say(pick(WISE.concat(TIPS))));
+document.addEventListener('click', e => { if (e.target.closest('.orb')) say(pick(WISE.concat(TIPS))); });
 document.addEventListener('input', e => { if (e.target.id === 'idn' && e.key === 'Enter') return; });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'idn') $('#ida').click(); });
 
 /* ---------- first-launch wizard (short) ---------- */
 function wizard(step) {
   if (step === 1) { sheet(`<h2>Welcome</h2><p>This is a private space to build strong habits. Everything stays on your phone. What should I call you?</p><label class="field"><span>Your name</span><input id="wn" type="text" value="${esc(S.name)}" placeholder="Name"></label><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true); $('#wx').onclick = () => { S.name = $('#wn').value.trim() || 'Friend'; save(); wizard(2); }; }
-  else if (step === 2) { sheet(`<h2>How it works</h2><p>Your main habit is called <b>The Nemesis</b>. When you resist an urge, press <b>Ducked</b> and earn ${dv()} points. When you give in, press <b>Yielded</b> and lose ${S.yv}. Resisting is worth twice as much, so progress is always possible.</p><p>A second habit, <b>Unplug</b>, helps you spend fewer minutes on pointless screen time.</p><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true); $('#wx').onclick = () => wizard(3); }
+  else if (step === 2) { sheet(`<h2>How it works</h2><p>Your main habit is called <b>The Nemesis</b>. When you resist an urge, press <b>Ducked</b> and earn Nemesis Cash. When you give in, press <b>Yielded</b> and lose some. In steady hours Ducked pays twice what Yielded costs. In hard hours it pays even more and costs less, so every win is worth more when it is hardest. The cash buys gear for your hero, and your hero has 999 levels to climb.</p><p>A second habit, <b>Unplug</b>, helps you spend fewer minutes on pointless screen time.</p><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true); $('#wx').onclick = () => wizard(3); }
   else if (step === 3) { sheet(`<h2>Your look</h2><p>Pick a colour. You can change it later in Settings.</p><div class="seg" id="wa"><button data-wa="sapphire" class="${S.accent === 'sapphire' ? 'on' : ''}">Sapphire</button><button data-wa="gold" class="${S.accent === 'gold' ? 'on' : ''}">Champagne</button></div><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true);
     $$('[data-wa]').forEach(b => b.onclick = () => { S.accent = b.dataset.wa; save(); apply(); $$('[data-wa]').forEach(x => x.classList.toggle('on', x === b)); }); $('#wx').onclick = () => wizard(4); }
   else { sheet(`<h2>Protect your privacy</h2><p>A PIN keeps this app private. The app also hides its content when you switch to another app.</p><div class="modal-actions"><button class="btn-quiet hb" id="p2">Later</button><button class="btn-primary hb" id="p1">${svg('lock')}Set a PIN</button></div>`, true);
@@ -429,7 +538,8 @@ function wizard(step) {
 
 /* ---------- start ---------- */
 if (window.GBtnLook) GBtnLook.config({ prefs: () => S, set: (k, v) => { S[k] = v; save(); }, render });
+$('#world').innerHTML = G.scene(); $('#hub').innerHTML = G.nemesis(0) + '<b>The Nemesis</b>';
 apply(); render();
 if (!S.done) wizard(1); else if (S.pin) lockNow();
-window.__ht = { S: () => S, stats, score, build };
+window.__ht = { S: () => S, stats, score, build, tierNow, valuesNow, levelOf, needAt, ledger, riskAt, tierValues };
 })();
