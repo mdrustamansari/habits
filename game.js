@@ -57,6 +57,20 @@ function stylize(cells) {
   });
   return out;
 }
+/* Scale2x (EPX): doubles the pixel density and rounds off the stair-steps, so art looks finer without being blurred. */
+function scale2(cells) {
+  const ks = Object.keys(cells).map(k => k.split(',').map(Number)); if (!ks.length) return cells;
+  const x0 = Math.min.apply(null, ks.map(a => a[0])) - 1, x1 = Math.max.apply(null, ks.map(a => a[0])) + 1, y0 = Math.min.apply(null, ks.map(a => a[1])) - 1, y1 = Math.max.apply(null, ks.map(a => a[1])) + 1, out = {};
+  const at = (x, y) => cells[x + ',' + y] || null, put = (x, y, c) => { if (c) out[x + ',' + y] = c; };
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), D = at(x, y + 1), X = x * 2, Y = y * 2;
+    put(X, Y, C === A && C !== D && A !== B ? A : P); put(X + 1, Y, A === B && A !== C && B !== D ? B : P);
+    put(X, Y + 1, D === C && D !== B && C !== A ? C : P); put(X + 1, Y + 1, B === D && B !== A && D !== C ? D : P);
+  }
+  return out;
+}
+const DENS = 2;   // how many times the pixel density is doubled (2 = four times finer than v1.2)
+const up = c => { for (let i = 0; i < DENS; i++) c = scale2(c); return c; };
 function rowsToCells(rows, ox, oy) { const c = {}; rows.forEach((r, j) => Array.from(r).forEach((ch, i) => { if (PAL[ch]) c[(i + (ox || 0)) + ',' + (j + (oy || 0))] = PAL[ch]; })); return c; }
 function svgOf(cells, cls, extra) {
   const ks = Object.keys(cells).map(k => k.split(',').map(Number));
@@ -67,7 +81,7 @@ function svgOf(cells, cls, extra) {
 const cache = {};
 function sprite(name, size) {
   const key = name + '|' + (size || 0);
-  return cache[key] || (cache[key] = svgOf(stylize(rowsToCells(SP[name])), '', size ? `width="${size}" height="${size}"` : ''));
+  return cache[key] || (cache[key] = svgOf(stylize(up(rowsToCells(SP[name]))), '', size ? `width="${size}" height="${size}"` : ''));
 }
 
 /* ---- the pixel stick hero. look: 0 newborn, 1 child, 2 young, 3 grown, 4 tall. eq: { slot: itemId } ---- */
@@ -93,7 +107,7 @@ function hero(level, eq, size) {
   if (item('head')) put(item('head'), cx - 4, item('head') === 'helm' ? ht - 3 : ht - 4);
   if (item('rhand')) { const s = item('rhand'); put(s, cx + P.arm - 1, ah - (SP[s].length - 2)); }
   if (item('lhand')) put(item('lhand'), cx - P.arm - 6, ah - 4);
-  return svgOf(stylize(g), 'hero', size ? `width="${size}" height="${size}"` : '');
+  return svgOf(stylize(up(g)), 'hero', size ? `width="${size}" height="${size}"` : '');
 }
 
 /* ---- the Nemesis: a smooth creature. state 0 raging, 1 weakened, 2 defeated ---- */
@@ -111,7 +125,7 @@ function nemesis(state) {
   return `<svg class="nem" viewBox="0 0 200 200" aria-hidden="true"><defs><radialGradient id="${i}b" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="${body[0]}"/><stop offset=".55" stop-color="${body[1]}"/><stop offset="1" stop-color="${body[2]}"/></radialGradient><radialGradient id="${i}h" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity=".5"/><stop offset="1" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity="0"/></radialGradient><linearGradient id="${i}e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6a8"/><stop offset="1" stop-color="#ffb32a"/></linearGradient></defs>
   <g transform="translate(100 108) scale(${sc}) translate(-100 -108)${s === 2 ? ' rotate(-8 100 120)' : ''}"><circle cx="100" cy="106" r="96" fill="url(#${i}h)"/>
   <path d="M52 62Q30 34 46 12q8 22 34 36z" fill="#ffd45a" stroke="#7a1d3a" stroke-width="3" stroke-linejoin="round"/><path d="M148 62Q170 34 154 12q-8 22-34 36z" fill="#ffd45a" stroke="#7a1d3a" stroke-width="3" stroke-linejoin="round"/>
-  <circle cx="100" cy="112" r="72" fill="url(#${i}b)" stroke="#4a1030" stroke-width="4"/><ellipse cx="76" cy="70" rx="24" ry="12" fill="#fff" opacity=".22" transform="rotate(-24 76 70)"/>${eyes}${mouth}</g></svg>`;
+  <circle cx="100" cy="112" r="72" fill="url(#${i}b)" stroke="#4a1030" stroke-width="4"/><ellipse cx="76" cy="70" rx="24" ry="12" fill="#fff" opacity=".22" transform="rotate(-24 76 70)"/><g class="ey">${eyes}</g>${mouth}</g></svg>`;
 }
 
 /* ---- the world behind The Nemesis: moonlit citadel, drawn once, never animated ---- */
@@ -138,5 +152,6 @@ function scene() {
   <rect y="556" width="390" height="3" fill="#3fd8ff" opacity=".55"/><rect width="390" height="860" fill="#040714" opacity=".12"/></svg>`;
 }
 
-root.HTGame = { PAL, SP, CATALOG, SLOTS, sprite, hero, nemesis, scene, bodyLook };
+const coin = sz => `<svg class="coin" width="${sz}" height="${sz}" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#ffcf40" stroke="#8a5208" stroke-width="1.5"/><circle cx="10" cy="10" r="6.4" fill="none" stroke="#fff0a8" stroke-width="1.2"/><path d="M10 6l3.4 4L10 14 6.6 10z" fill="#c98a12" stroke="#8a5208" stroke-width=".8" stroke-linejoin="round"/><path d="M4.6 7.4A6.2 6.2 0 0 1 8 4.2" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".8"/></svg>`;
+root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, nemesis, scene, bodyLook };
 })(window);

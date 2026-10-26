@@ -2,7 +2,7 @@
    Look: shared style files (style.css, flagship.css, buttons.css, btnlook.js). Words follow DESIGN-LANGUAGE.md section 10. */
 (function () {
 'use strict';
-const KEY = 'ht_v1', VERSION = '1.2';
+const KEY = 'ht_v1', VERSION = '1.3';
 const G = window.HTGame;
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -21,6 +21,7 @@ function migrate(o) {
     (o.logs || []).forEach(l => { if (l.p === undefined) { l.p = l.k === 'd' ? 2 * o.base : -o.base; l.tier = 1; } });
     (o.ul || []).forEach(u => { if (!u.c) u.c = 'oth'; }); delete o.yv; o.v = 2;
   }
+  if (o.sound === undefined) o.sound = true; if (o.vib === undefined) o.vib = true;
   const d = defaults(); ['ucats', 'gear', 'buys', 'dismiss'].forEach(k => { if (!o[k]) o[k] = d[k]; }); if (!o.gear.own) o.gear = d.gear;
   return o;
 }
@@ -136,7 +137,7 @@ const WISE = ['An urge is like a wave. It rises, peaks and falls.', 'You do not 
 let toastT, AC;
 function say(text, undo) {
   const t = $('#toast');
-  t.innerHTML = esc(text) + (undo ? ' <button class="mini-btn" id="t-undo">Undo</button>' : '');
+  t.innerHTML = esc(text).replace(/\{c\}/g, G.coin(14)) + (undo ? ' <button class="mini-btn" id="t-undo">Undo</button>' : '');
   t.classList.toggle('act', !!undo); t.classList.add('show');
   if (undo) $('#t-undo').onclick = () => { undo(); t.classList.remove('show'); render(); };
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), undo ? 6500 : 4200);
@@ -160,14 +161,16 @@ function confirmSheet(o) {
 
 /* ---------- actions ---------- */
 function logHab(k, viaRescue) {
-  const tn = tierNow(), v = valuesNow(tn.tier); let p = k === 'd' ? v.d : -v.y; if (k === 'd' && viaRescue && has('potion')) p += 100;
+  const lv0 = stats().lvl, tn = tierNow(), v = valuesNow(tn.tier); let p = k === 'd' ? v.d : -v.y; if (k === 'd' && viaRescue && has('potion')) p += 100;
   const l = { id: Date.now() + Math.random(), t: Date.now(), k, p, tier: tn.tier }; if (viaRescue) l.r = 1; S.logs.push(l); save();
-  if (k === 'd') { tone(660, .35); setTimeout(() => tone(880, .4), 150); vib(18); render(); say(pick(KIND_D) + ' +' + fmt(p) + ' Nemesis Cash'); }
-  else { tone(300, .5, .05); vib([30, 60, 30]); render(); yieldSheet(p); }
+  const lv1 = stats().lvl; FX = { k, p }; closeGS();
+  if (k === 'd') { tone(660, .35); setTimeout(() => tone(880, .4), 150); setTimeout(() => tone(1320, .25, .04), 300); vib([14, 30, 22]); render(); if (lv1 <= lv0) say(pick(KIND_D) + ' +{c} ' + fmt(p)); }
+  else { tone(300, .5, .05); setTimeout(() => tone(220, .5, .05), 160); vib([30, 60, 30]); render(); setTimeout(() => yieldSheet(p), 700); }
+  if (lv1 > lv0) setTimeout(() => levelUp(lv0, lv1), 900);
 }
 function yieldSheet(p) {
   const h = new Date().getHours(), late = h >= 16 || h < 5;
-  sheet(`<h2>It happened</h2><p>${esc(pick(KIND_Y))} <b>${fmt(p || 0)}</b> Nemesis Cash.</p><div class="card" style="margin:0 0 12px"><div class="hint">Try this now</div><div style="margin-top:6px;font-size:1.5rem;font-weight:300">${esc(pick(TIPS))}</div></div>${late ? '<p>Evenings and nights are the hardest hours. Charge your phone away from your bed tonight.</p>' : ''}<div class="modal-actions"><button class="btn-quiet hb" id="y2">Close</button><button class="btn-primary hb" id="y1">${svg('wind')}Start Urge Rescue</button></div>`);
+  sheet(`<h2>It happened</h2><p>${esc(pick(KIND_Y))} <b>${coin(14)} ${fmt(p || 0)}</b></p><div class="card" style="margin:0 0 12px"><div class="hint">Try this now</div><div style="margin-top:6px;font-size:1.5rem;font-weight:300">${esc(pick(TIPS))}</div></div>${late ? '<p>Evenings and nights are the hardest hours. Charge your phone away from your bed tonight.</p>' : ''}<div class="modal-actions"><button class="btn-quiet hb" id="y2">Close</button><button class="btn-primary hb" id="y1">${svg('wind')}Start Urge Rescue</button></div>`);
   $('#y1').onclick = () => { closeSheet(); rescue(); }; $('#y2').onclick = closeSheet;
 }
 function rescue() {
@@ -305,36 +308,57 @@ function dangerInfo() {
 
 /* ---------- The Nemesis (the game screen) ---------- */
 const slotChip = id => { const it = G.CATALOG.find(c => c.id === S.gear.eq[id]); return `<span class="g-slot${it ? '' : ' e'}" title="${it ? esc(it.name) : 'Empty'}">${it ? G.sprite(it.sp, 22) : '+'}</span>`; };
+let FX = null, curTier = 1, hubSt = -1;
+const coin = s => G.coin(s || 16);
+const gauge = (f, lab, val, col) => { const C = 2 * Math.PI * 22; return `<div class="g-gauge"><svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22" fill="none" stroke="#17305f" stroke-width="6"/><circle cx="28" cy="28" r="22" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(Math.max(0, Math.min(1, f)) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 28 28)"/></svg><b>${val}</b><span>${lab}</span></div>`; };
 function viewToday() {
   const st = stats(), k = todayK(), o = st.I[k] || { d: 0, y: 0, m: 0, e: 0, c: 0, hasUl: false }, tn = tierNow(), vv = valuesNow(tn.tier);
+  curTier = tn.tier; const fx = FX; FX = null;
   const net = o.c, pct = Math.max(0, Math.min(1, net / S.goal)), state = net >= S.goal ? 2 : pct >= 0.5 ? 1 : 0, C = 2 * Math.PI * 138;
   const perks = S.gear.own.filter(i => (G.CATALOG.find(c => c.id === i) || {}).slot === 'perk').length;
-  const logs = S.logs.filter(l => dk(l.t) === k).sort((a, b) => b.t - a.t);
-  const nx = nextRank(st.lvl);
+  const logs = S.logs.filter(l => dk(l.t) === k);
+  const nx = nextRank(st.lvl), fl = st.streak >= 100 ? 3 : st.streak >= 30 ? 2 : st.streak >= 7 ? 1 : 0;
+  let burst = '';
+  if (fx) {
+    burst = `<div class="g-float ${fx.k}">${fx.p > 0 ? '+' : '−'}${fmt(Math.abs(fx.p))}</div>`;
+    if (fx.k === 'd') for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + 0.3, r = 95 + (i * 37) % 40; burst += `<i class="g-spark" style="--dx:${Math.round(Math.cos(a) * r)}px;--dy:${Math.round(Math.sin(a) * r)}px;animation-delay:${(i % 4) * 40}ms"></i>`; }
+  }
   let out = `<div class="g-hud"><button class="g-av" data-to="arm" aria-label="Open the Armoury" title="Open the Armoury">${G.hero(st.lvl, S.gear.eq)}<span class="g-lv">Lv ${st.lvl} / 999</span></button>
-    <div class="g-hi"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999 · ${fmt(st.earned)} earned</div>
-    <div class="g-xp"><i style="width:${Math.round(Math.max(0, Math.min(1, st.prog)) * 100)}%"></i></div><div class="g-xl"><span>${st.lvl >= 999 ? 'Highest level' : 'Level ' + (st.lvl + 1) + (nx && RANKS.some(r => r[0] === st.lvl + 1) ? ': ' + nx : '')}</span><span>${fmt(st.toNext)} to go</span></div>
-    <div class="g-slots">${slotChip('head')}${slotChip('rhand')}${slotChip('lhand')}<span class="g-slot e" title="Perks">${perks ? perks : '+'}</span></div></div>
+    <div class="g-hi"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">${fmt(st.earned)} earned in total</div>
+    <div class="g-xp"><i style="width:${Math.round(Math.max(0, Math.min(1, st.prog)) * 100)}%"></i></div><div class="g-xl"><span>${st.lvl >= 999 ? 'Highest level' : 'Level ' + (st.lvl + 1) + (nx && RANKS.some(r => r[0] === st.lvl + 1) ? ': ' + nx : '')}</span><span>${fmt(st.toNext)} to go</span></div></div>
     <button class="cc orb g-orb" aria-label="Companion. Tap for a tip." title="Tap for a tip"><i></i></button></div>
-    <button class="g-cash" data-to="arm" aria-label="Open the Armoury">◈ ${fmt(st.bal)} Nemesis Cash</button>`;
-  out += `<div class="g-arena"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="138" fill="rgba(8,14,36,.62)" stroke="#0a1230" stroke-width="14"/><circle cx="150" cy="150" r="138" fill="none" stroke="#17305f" stroke-width="8"/>
+    <div class="g-row2"><div class="g-slots">${slotChip('head')}${slotChip('rhand')}${slotChip('lhand')}<span class="g-slot e" title="Perks">${perks ? perks : '+'}</span></div>
+    <button class="g-cash" data-to="arm" aria-label="${fmt(st.bal)} coins. Open the Armoury">${coin(20)}<b>${fmt(st.bal)}</b></button></div>`;
+  out += `<div class="g-arena${tn.tier >= 2 ? ' hard' : ''}${fx ? ' fx-' + fx.k : ''}"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="138" fill="rgba(5,9,26,.84)" stroke="#0a1230" stroke-width="14"/><circle cx="150" cy="150" r="138" fill="none" stroke="#17305f" stroke-width="8"/>
     <circle cx="150" cy="150" r="138" fill="none" stroke="#5ad7ff" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(pct * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 150 150)" style="transition:stroke-dasharray 1.1s ease"/><circle cx="150" cy="150" r="118" fill="none" stroke="rgba(154,123,255,.5)" stroke-width="1.5" stroke-dasharray="3 7"/></svg>
-    <div class="g-cre">${G.nemesis(state)}</div><div class="g-prog">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today</div></div>
-    <div class="g-threat">${TIERW[tn.tier]} · Ducked ${tn.tier >= 2 ? '▲' : tn.tier === 0 ? '▼' : '–'} Yielded ${tn.tier >= 2 ? '▼' : tn.tier === 0 ? '▲' : '–'}</div><div class="g-why">${tn.learned ? 'Learned from your own days.' : 'From the usual pattern. It learns as you log.'}</div>
+    <div class="g-cre">${G.nemesis(state)}</div><div class="g-prog">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today</div>${burst}</div>
+    <div class="g-threat"><span>${TIERW[tn.tier]}${tn.tier === 1 ? '' : ' · Ducked ' + (tn.tier >= 2 ? '▲' : '▼') + ' Yielded ' + (tn.tier >= 2 ? '▼' : '▲')}</span></div><div class="g-why">${tn.learned ? 'Learned from your own days.' : 'From the usual pattern. It learns as you log.'}</div>
     <div class="g-btns"><button class="g-btn d" id="bd">Ducked<small>+${fmt(vv.d)}</small></button><button class="g-btn y" id="by">Yielded<small>−${fmt(vv.y)}</small></button></div>
     <button class="g-btn q" id="br">${svg('wind')}Urge Rescue${has('potion') ? ' · +100' : ''}</button>
-    <div class="g-chips"><span class="g-chip">${svg('flame')}${st.streak} day streak</span><span class="g-chip">Ducked ${o.d} · Yielded ${o.y}</span></div>`;
-  if (logs.length) {
-    out += `<div class="g-card"><details><summary>Today's entries · ${logs.length}</summary><div style="margin-top:8px">${logs.map(l => { const d = l.k === 'd'; return `<div class="g-log"><span class="t">${clock(l.t)}</span><span class="n">${d ? 'Ducked' + (l.r ? ' (rescue)' : '') : 'Yielded'}</span><span class="p ${d ? 'pos' : 'neg'}">${l.p > 0 ? '+' : '−'}${fmt(Math.abs(l.p))}</span><button class="g-del" data-dl="${l.id}" title="Delete" aria-label="Delete entry">${svg('trash')}</button></div>`; }).join('')}</div></details></div>`;
-  }
+    <div class="g-chips"><span class="g-chip fl fl${fl}">${svg('flame')}${st.streak} day streak</span>${logs.length ? `<button class="g-chip" id="ent" aria-label="Show today's entries">Ducked ${o.d} · Yielded ${o.y} ▴</button>` : `<span class="g-chip">Ducked ${o.d} · Yielded ${o.y}</span>`}</div>`;
   return out;
 }
+function entriesSheet() {
+  const k = todayK(), logs = S.logs.filter(l => dk(l.t) === k).sort((a, b) => b.t - a.t); closeGS();
+  const d = document.createElement('div'); d.id = 'gsb'; d.className = 'g-sheet-bg';
+  d.innerHTML = `<div class="g-sheet"><div class="g-grip"></div><div class="g-cap" style="margin-bottom:6px">Today's entries</div>${logs.length ? logs.map(l => { const dd = l.k === 'd'; return `<div class="g-log"><span class="t">${clock(l.t)}</span><span class="n">${dd ? 'Ducked' + (l.r ? ' (rescue)' : '') : 'Yielded'}</span><span class="p ${dd ? 'pos' : 'neg'}">${l.p > 0 ? '+' : '−'}${fmt(Math.abs(l.p))}</span><button class="g-del" data-dl="${l.id}" title="Delete" aria-label="Delete entry">${svg('trash')}</button></div>`; }).join('') : '<div class="g-sub">Nothing yet today.</div>'}<button class="g-btn q" id="gsx" style="margin-top:14px">Close</button></div>`;
+  document.body.appendChild(d); requestAnimationFrame(() => d.classList.add('show')); vib(8); $('#toast').classList.remove('show');
+}
+function closeGS() { const d = $('#gsb'); if (d) d.remove(); }
+function levelUp(a, b) {
+  closeGS(); const un = G.CATALOG.filter(c => c.level > a && c.level <= b);
+  const d = document.createElement('div'); d.className = 'lvlup';
+  d.innerHTML = `<div class="lu-in"><div class="g-cap">Level up</div><div class="lu-hero">${G.hero(b, S.gear.eq)}</div><div class="lu-n">Level ${b}</div><div class="lu-r">${rankName(b)}</div>${un.length ? `<div class="g-sub">New in the Armoury</div><div class="lu-items">${un.map(c => G.sprite(c.sp, 40)).join('')}</div>` : ''}<div class="g-sub" style="margin-top:14px">Tap to continue</div></div>`;
+  document.body.appendChild(d); const x = () => { d.classList.add('out'); setTimeout(() => d.remove(), 380); }; d.onclick = x; setTimeout(x, 5200);
+  tone(523, .3); setTimeout(() => tone(659, .3), 130); setTimeout(() => tone(784, .3), 260); setTimeout(() => tone(1046, .7), 390); vib([20, 40, 20, 40, 70]);
+}
+function todayState() { const o = stats().I[todayK()], net = o ? o.c : 0; return net >= S.goal ? 2 : net >= S.goal / 2 ? 1 : 0; }
 
 /* ---------- Armoury ---------- */
 function buyItem(id) {
   const it = G.CATALOG.find(c => c.id === id), st = stats(); if (!it || has(id)) return;
   if (st.lvl < it.level) { say('You need level ' + it.level + ' for this.'); return; }
-  if (st.bal < it.price) { say('You need ◈ ' + fmt(it.price - st.bal) + ' more.'); return; }
+  if (st.bal < it.price) { say('You need {c} ' + fmt(it.price - st.bal) + ' more.'); return; }
   const b = { id: 'b' + Date.now(), t: Date.now(), item: id, cost: it.price }, had = S.gear.eq[it.slot];
   S.buys.push(b); S.gear.own.push(id); if (it.slot !== 'perk' && !had) S.gear.eq[it.slot] = id; save(); tone(740, .3); setTimeout(() => tone(990, .45), 140); vib([20, 40, 20]); render();
   say(it.name + ' is yours.', () => { S.buys = S.buys.filter(x => x.id !== b.id); S.gear.own = S.gear.own.filter(x => x !== id); if (S.gear.eq[it.slot] === id) delete S.gear.eq[it.slot]; save(); });
@@ -345,16 +369,18 @@ function equipItem(id, on) {
 }
 function viewArmoury() {
   const st = stats(), eq = S.gear.eq, perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
-  let out = `<div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-cashline">◈ ${fmt(st.bal)} Nemesis Cash</div><div class="g-sub">Your level follows the cash you earn, never the cash you spend.</div></div></div>`;
+  const rate = st.D + st.Y ? st.D / (st.D + st.Y) : 0;
+  let out = `<div class="g-top"><div class="g-title">Armoury</div><div class="g-cash static">${coin(20)}<b>${fmt(st.bal)}</b></div></div><div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-sub" style="margin-top:10px">Your level follows the coins you earn, never the coins you spend.</div></div></div>`;
+  out += `<div class="g-gauges">${gauge(rate, 'Resolve', Math.round(rate * 100) + '%', '#4fe0a8')}${gauge(Math.min(1, st.streak / 30), 'Streak', st.streak + 'd', '#ffb35a')}${gauge(st.prog, 'Climb', Math.round(Math.max(0, Math.min(1, st.prog)) * 100) + '%', '#5ad7ff')}</div>`;
   if (perks.length) out += `<div class="g-card"><div class="g-cap">Active perks</div>${perks.map(p => `<div class="g-perk">${G.sprite(p.sp, 28)}<span><b>${esc(p.name)}</b><br><small>${esc(p.perk)}</small></span></div>`).join('')}</div>`;
-  out += `<div class="g-cap" style="margin:14px 4px 8px">Armoury</div><div class="g-shop">`;
+  out += `<div class="g-cap" style="margin:14px 4px 8px">Gear and perks</div><div class="g-shop">`;
   G.CATALOG.slice().sort((a, b) => a.level - b.level).forEach(it => {
     const own = has(it.id), worn = eq[it.slot] === it.id && it.slot !== 'perk', locked = st.lvl < it.level, afford = st.bal >= it.price;
     let act;
     if (own) act = it.slot === 'perk' ? '<span class="g-own">Active</span>' : worn ? `<button class="g-btn q sm" data-ueq="${it.id}">Take off</button>` : `<button class="g-btn p sm" data-eq="${it.id}">Wear</button>`;
     else if (locked) act = `<span class="g-lock">Level ${it.level}</span>`;
-    else act = `<button class="g-btn p sm${afford ? '' : ' off'}" data-buy="${it.id}">Buy · ◈ ${fmt(it.price)}</button>`;
-    out += `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked ? ' locked' : ''}">${G.sprite(it.sp, 52)}<div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk' : G.SLOTS[it.slot]}${own ? '' : ' · ◈ ' + fmt(it.price)}</div>${act}</div>`;
+    else act = `<button class="g-btn p sm${afford ? '' : ' off'}" data-buy="${it.id}">Buy · ${coin(14)} ${fmt(it.price)}</button>`;
+    out += `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked ? ' locked' : ''}"><div class="g-art">${G.sprite(it.sp, 52)}</div><div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk' : G.SLOTS[it.slot]}${own ? '' : ' · ' + coin(12) + ' ' + fmt(it.price)}</div>${act}</div>`;
   });
   return out + '</div>';
 }
@@ -385,7 +411,7 @@ function viewUnplug() {
     <div class="wd-mid"><div class="wd-big">${eff}</div><div class="wd-un">of ${S.target} weighted minutes of pointless screen time (${Math.round(o.m)} real)</div></div>
     <div class="hb-ring" style="width:52px;height:52px">${arc(pct, over ? '#d23b34' : 'var(--blue-b)')}</div></div>
     <div class="hb-bar ${over ? 'r' : ''}"><i style="width:${Math.round(pct * 100)}%"></i></div>
-    <div class="hint" style="margin-top:8px">Bonus when today ends: ◈ ${fmt(ulBonus(o))} of 500. Under the limit earns more.</div></div>`;
+    <div class="hint" style="margin-top:8px">Bonus when today ends: ${coin(14)} ${fmt(ulBonus(o))} of 500. Under the limit earns more.</div></div>`;
   out += `<div class="card"><h3>Log screen time</h3><div class="hint">Choose what you were doing, then add the minutes.</div><div class="hb-chiprow">${S.ucats.map(c => `<button class="mini-btn${c.id === ucSel ? ' on' : ''}" data-uc="${c.id}" aria-pressed="${c.id === ucSel}">${esc(c.n)}${c.w !== 1 ? ' ×' + c.w : ''}</button>`).join('')}</div>
     <div class="hb-chiprow"><button class="mini-btn" data-ul="15">+15</button><button class="mini-btn" data-ul="30">+30</button><button class="mini-btn" data-ul="60">+60</button><button class="btn-quiet mini-btn" id="ulc">Other</button><button class="btn-quiet mini-btn" id="ulz">Zero today</button></div></div>`;
   sg.forEach(s => {
@@ -407,7 +433,7 @@ function viewProgress() {
     const days = weekDays(k), prev = weekDays(addDays(weekStart(k), -7)), n = days.filter(x => x.k <= k).length; let tot = 0, ptot = 0, mx = 1;
     days.forEach(x => { const s = score(x.o); tot += s; mx = Math.max(mx, Math.abs(s)); }); prev.forEach((x, i) => { if (i < n) ptot += score(x.o); });
     const diff = tot - ptot, L = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    out += `<div class="card"><div class="hb-cap">This week</div><div class="hb-row"><div class="hb-big">${tot}<small>cash</small></div><div class="hint hb-grow" style="text-align:right;color:${diff >= 0 ? '#1f9d63' : 'var(--warning)'}">${diff === 0 ? '– same as last week' : (diff > 0 ? '▲ ' : '▼ ') + Math.abs(diff) + ' vs same days last week'}</div></div>
+    out += `<div class="card"><div class="hb-cap">This week</div><div class="hb-row"><div class="hb-big">${tot}<small>${coin(14)}</small></div><div class="hint hb-grow" style="text-align:right;color:${diff >= 0 ? '#1f9d63' : 'var(--warning)'}">${diff === 0 ? '– same as last week' : (diff > 0 ? '▲ ' : '▼ ') + Math.abs(diff) + ' vs same days last week'}</div></div>
       <div class="hb-wk">${days.map((x, i) => { const s = score(x.o), hh = s === 0 ? 4 : Math.round(Math.abs(s) / mx * 88) + 4; return `<div><span>${s ? kfmt(s) : ''}</span><b class="${s < 0 ? 'n' : s === 0 ? 'z' : ''}" style="height:${hh}px"></b>${L[i]}</div>`; }).join('')}</div></div>`;
   } else {
     const d0 = fromKey(k); d0.setDate(1); d0.setMonth(d0.getMonth() + monthOff);
@@ -420,7 +446,7 @@ function viewProgress() {
     }
     const mn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m];
     out += `<div class="card"><div class="hb-nav"><button class="ico-btn" id="mp" aria-label="Previous month" title="Previous month">${svg('left')}</button><h3 style="margin:0">${mn} ${y}</h3><button class="ico-btn" id="mn" aria-label="Next month" title="Next month" ${monthOff >= 0 ? 'disabled style="opacity:.35"' : ''}>${svg('right')}</button></div>
-      <div class="hb-row" style="margin:14px 0 4px"><div class="hb-big">${mt}<small>cash</small></div></div><div class="hint">Ducked ${mD} · Yielded ${mY}</div><div class="hb-cal">${cells}</div>
+      <div class="hb-row" style="margin:14px 0 4px"><div class="hb-big">${mt}<small>${coin(14)}</small></div></div><div class="hint">Ducked ${mD} · Yielded ${mY}</div><div class="hb-cal">${cells}</div>
       <div class="hint" style="margin-top:12px">Darker green is a stronger day. Red is a day that lost points.</div></div>`;
   }
   const rate = st.D + st.Y ? Math.round(st.D / (st.D + st.Y) * 100) : 0;
@@ -483,13 +509,15 @@ function render() {
   const sy = window.scrollY;
   el.innerHTML = ({ today: viewToday, arm: viewArmoury, prog: viewProgress, unp: viewUnplug, set: viewSettings })[screen]();
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.s === screen));
-  document.body.classList.toggle('game', screen === 'today' || screen === 'arm'); $('#banner').style.display = 'none';
+  document.body.classList.toggle('game', screen === 'today' || screen === 'arm'); document.body.classList.toggle('hard', screen === 'today' && curTier >= 2); $('#banner').style.display = 'none';
+  const hs = todayState(); if (hs !== hubSt) { hubSt = hs; $('#hub').innerHTML = G.nemesis(hs); } $('#hub').classList.toggle('sleep', screen !== 'today');
   window.scrollTo(0, sy);
 }
 document.addEventListener('click', e => {
   const t = e.target, c = s => t.closest(s);
   let b;
-  if ((b = c('.nav-item'))) { if (b.dataset.s === 'set' && screen === 'set') setPage = 'top'; screen = b.dataset.s; render(); window.scrollTo(0, 0); return; }
+  if (t.id === 'gsb' || c('#gsx')) return closeGS(); if (c('#ent')) return entriesSheet();
+  if ((b = c('.nav-item'))) { tone(screen === b.dataset.s ? 400 : 520, .12, .05); vib(8); closeGS(); if (b.dataset.s === 'set' && screen === 'set') setPage = 'top'; screen = b.dataset.s; render(); window.scrollTo(0, 0); return; }
   if ((b = c('[data-to]'))) { screen = b.dataset.to; render(); window.scrollTo(0, 0); return; }
   if ((b = c('[data-buy]'))) return buyItem(b.dataset.buy); if ((b = c('[data-eq]'))) return equipItem(b.dataset.eq, true); if ((b = c('[data-ueq]'))) return equipItem(b.dataset.ueq, false);
   if ((b = c('[data-uc]'))) { ucSel = b.dataset.uc; return render(); }
@@ -499,7 +527,7 @@ document.addEventListener('click', e => {
   if ((b = c('[data-sg]'))) { const p = b.dataset.sg.split(':'), cc = S.ucats.find(x => x.id === p[0]); if (p[2] === 'ok') { const was = cc.w; cc.w = +p[3]; save(); render(); say('Weight changed to ' + cc.w + '.', () => { cc.w = was; save(); }); } else { S.dismiss[p[0] + p[1]] = Date.now(); save(); render(); } return; }
   if (c('#bd')) return logHab('d'); if (c('#by')) return logHab('y'); if (c('#br')) return rescue();
   if ((b = c('[data-ul]'))) return addUl(+b.dataset.ul); if (c('#ulc')) return customMinutes(); if (c('#ulz')) return addUl(0);
-  if ((b = c('[data-dl]'))) return delEntry('logs', +b.dataset.dl, 'It will be removed from your points.');
+  if ((b = c('[data-dl]'))) { closeGS(); return delEntry('logs', +b.dataset.dl, 'It will be removed from your points.'); }
   if ((b = c('[data-du]'))) return delEntry('ul', +b.dataset.du, 'It will be removed from your screen time.');
   if ((b = c('[data-p]'))) { pTab = b.dataset.p; return render(); }
   if (c('#mp')) { monthOff--; return render(); } if (c('#mn')) { if (monthOff < 0) { monthOff++; render(); } return; }
@@ -528,7 +556,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id
 /* ---------- first-launch wizard (short) ---------- */
 function wizard(step) {
   if (step === 1) { sheet(`<h2>Welcome</h2><p>This is a private space to build strong habits. Everything stays on your phone. What should I call you?</p><label class="field"><span>Your name</span><input id="wn" type="text" value="${esc(S.name)}" placeholder="Name"></label><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true); $('#wx').onclick = () => { S.name = $('#wn').value.trim() || 'Friend'; save(); wizard(2); }; }
-  else if (step === 2) { sheet(`<h2>How it works</h2><p>Your main habit is called <b>The Nemesis</b>. When you resist an urge, press <b>Ducked</b> and earn Nemesis Cash. When you give in, press <b>Yielded</b> and lose some. In steady hours Ducked pays twice what Yielded costs. In hard hours it pays even more and costs less, so every win is worth more when it is hardest. The cash buys gear for your hero, and your hero has 999 levels to climb.</p><p>A second habit, <b>Unplug</b>, helps you spend fewer minutes on pointless screen time.</p><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true); $('#wx').onclick = () => wizard(3); }
+  else if (step === 2) { sheet(`<h2>How it works</h2><p>Your main habit is called <b>The Nemesis</b>. When you resist an urge, press <b>Ducked</b> and earn coins. When you give in, press <b>Yielded</b> and lose some. In steady hours Ducked pays twice what Yielded costs. In hard hours it pays even more and costs less, so every win is worth more when it is hardest. The coins buy gear for your hero, and your hero has 999 levels to climb.</p><p>A second habit, <b>Unplug</b>, helps you spend fewer minutes on pointless screen time.</p><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true); $('#wx').onclick = () => wizard(3); }
   else if (step === 3) { sheet(`<h2>Your look</h2><p>Pick a colour. You can change it later in Settings.</p><div class="seg" id="wa"><button data-wa="sapphire" class="${S.accent === 'sapphire' ? 'on' : ''}">Sapphire</button><button data-wa="gold" class="${S.accent === 'gold' ? 'on' : ''}">Champagne</button></div><div class="modal-actions"><button class="btn-primary hb" id="wx">Continue</button></div>`, true);
     $$('[data-wa]').forEach(b => b.onclick = () => { S.accent = b.dataset.wa; save(); apply(); $$('[data-wa]').forEach(x => x.classList.toggle('on', x === b)); }); $('#wx').onclick = () => wizard(4); }
   else { sheet(`<h2>Protect your privacy</h2><p>A PIN keeps this app private. The app also hides its content when you switch to another app.</p><div class="modal-actions"><button class="btn-quiet hb" id="p2">Later</button><button class="btn-primary hb" id="p1">${svg('lock')}Set a PIN</button></div>`, true);
@@ -538,7 +566,7 @@ function wizard(step) {
 
 /* ---------- start ---------- */
 if (window.GBtnLook) GBtnLook.config({ prefs: () => S, set: (k, v) => { S[k] = v; save(); }, render });
-$('#world').innerHTML = G.scene(); $('#hub').innerHTML = G.nemesis(0) + '<b>The Nemesis</b>';
+$('#world').innerHTML = G.scene(); 
 apply(); render();
 if (!S.done) wizard(1); else if (S.pin) lockNow();
 window.__ht = { S: () => S, stats, score, build, tierNow, valuesNow, levelOf, needAt, ledger, riskAt, tierValues };
