@@ -2,7 +2,7 @@
    Look: shared style files (style.css, flagship.css, buttons.css, btnlook.js). Words follow DESIGN-LANGUAGE.md section 10. */
 (function () {
 'use strict';
-const KEY = 'ht_v1', VERSION = '1.4';
+const KEY = 'ht_v1', VERSION = '1.5';
 const G = window.HTGame;
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -535,6 +535,7 @@ function render() {
   el.innerHTML = ({ today: viewToday, arm: viewArmoury, prog: viewProgress, unp: viewUnplug, set: viewSettings })[screen]();
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.s === screen));
   document.body.classList.toggle('game', screen === 'today' || screen === 'arm'); document.body.classList.toggle('hard', screen === 'today' && curTier >= 2); $('#banner').style.display = 'none';
+  const sc = screen === 'today' ? [0, 1, 3, 4][curTier] : 2; $$('#world .sc').forEach(e => e.classList.toggle('on', +e.dataset.i === sc));
   const hs = todayState(); if (hs !== hubSt) { hubSt = hs; $('#hub').innerHTML = G.nemesis(hs); } $('#hub').classList.toggle('sleep', screen !== 'today');
   window.scrollTo(0, sy);
 }
@@ -591,6 +592,7 @@ function wizard(step) {
 
 /* ---------- start ---------- */
 if (window.GBtnLook) GBtnLook.config({ prefs: () => S, set: (k, v) => { S[k] = v; save(); }, render });
+$('#world').innerHTML = ['day', 'sunset', 'night', 'storm', 'blood'].map((n, i) => `<i class="sc" data-i="${i}" style="background-image:url(art/scene-${n}.webp)"></i>`).join('');
 const NAVI = { arm: 'shield', prog: 'bars', unp: 'phone', set: 'cog' }; $$('.nav-item[data-s]').forEach(n => { if (NAVI[n.dataset.s]) n.innerHTML = svg(NAVI[n.dataset.s]) + '<span>' + n.textContent + '</span>'; });
 
 apply(); render();
