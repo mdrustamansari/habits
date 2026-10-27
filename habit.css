@@ -280,9 +280,8 @@ button.g-chip { font: inherit; font-size: .95rem; cursor: pointer; }
 body.game .toast { bottom: calc(150px + env(safe-area-inset-bottom)); }
 
 /* ===== v1.4: painted arena, hexagon game UI, painted prince ===== */
-#world { --bk: #050208; --t: 21vh; --ih: min(83.4vw, 62vh); --f: 14vw;   /* the whole picture fits the screen width; black fades hide its top and bottom edges */
-  background: linear-gradient(to bottom, var(--bk) 0, var(--bk) var(--t), transparent calc(var(--t) + var(--f)), transparent calc(var(--t) + var(--ih) - var(--f)), var(--bk) calc(var(--t) + var(--ih)), var(--bk) 100%),
-    url(art/arena.jpg) center var(--t) / auto var(--ih) no-repeat, var(--bk); }
+#world { --bk: #050208;   /* portrait arena picture, fitted to the screen width; the creature in it was removed so the live Nemesis can stand there */
+  background: linear-gradient(to bottom, rgba(5, 2, 8, .5) 0, transparent 16vh, transparent calc(100% - 12vh), var(--bk) 100%), url(art/arena.jpg) center -10vw / 100% auto no-repeat, var(--bk); }
 #world svg { display: none; }
 body.hard #world { filter: saturate(1.1) brightness(.9) hue-rotate(-8deg); }
 :root { --hex: polygon(50% 0, 100% 24%, 100% 76%, 50% 100%, 0 76%, 0 24%); }
@@ -376,3 +375,9 @@ img.px { image-rendering: pixelated; display: block; }
 .g-av .pr { width: 176%; left: -38%; top: 7%; }
 .g-slot .bust .pr { width: 176%; left: -38%; top: 8%; }
 .g-cap { text-shadow: 0 1px 6px #000, 0 0 12px #000; }
+
+.g-arena { margin-top: 40px; }
+.g-arena { width: min(80vw, 312px); margin-top: 30px; }
+.g-hx { margin-top: 2px; }
+.g-strip { margin-top: 8px; }
+.g-strip { background: rgba(12, 5, 20, .9); }

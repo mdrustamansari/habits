@@ -353,7 +353,7 @@ function viewToday() {
     <div class="g-sub"><b>${fmt(st.earned)}</b> earned in total</div>
     <div class="g-xp"><i style="width:${Math.round(Math.max(0, Math.min(1, st.prog)) * 100)}%"></i></div><div class="g-xl"><span>${st.lvl >= 999 ? 'Highest level' : fmt(cur) + ' / ' + fmt(span) + ' XP'}</span></div>
     <div class="g-slots">${slotRow()}</div></div></div>`;
-  out += `<div class="g-arena${tn.tier >= 2 ? ' hard' : ''}${fx ? ' fx-' + fx.k : ''}"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="140" fill="rgba(5,6,18,.3)" stroke="#12081a" stroke-width="12"/><circle cx="150" cy="150" r="140" fill="none" stroke="#3a1230" stroke-width="7"/>
+  out += `<div class="g-arena${tn.tier >= 2 ? ' hard' : ''}${fx ? ' fx-' + fx.k : ''}"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="140" fill="rgba(5,6,18,.2)" stroke="#12081a" stroke-width="12"/><circle cx="150" cy="150" r="140" fill="none" stroke="#3a1230" stroke-width="7"/>
     <circle cx="150" cy="150" r="140" fill="none" stroke="#ff5a5a" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(pct * C * 1.0).toFixed(1)} ${(C * 1.0).toFixed(1)}" transform="rotate(-90 150 150)" style="transition:stroke-dasharray 1.1s ease;filter:drop-shadow(0 0 6px #ff6a4a)"/></svg>
     <div class="g-cre">${G.nemesis(state, true)}</div>
     ${bd('l1', '', svg('flame'), 'Danger', DANGER[tn.tier])}${bd('l2', '', solid('swirl'), 'Mood', MOOD[state])}${bd('r1', 'prog', svg('list'), 'Stats', '')}${bd('r2', 'arm', svg('star'), 'Perks', '')}
