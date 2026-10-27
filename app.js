@@ -2,7 +2,7 @@
    Look: shared style files (style.css, flagship.css, buttons.css, btnlook.js). Words follow DESIGN-LANGUAGE.md section 10. */
 (function () {
 'use strict';
-const KEY = 'ht_v1', VERSION = '1.3';
+const KEY = 'ht_v1', VERSION = '1.4';
 const G = window.HTGame;
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -13,7 +13,7 @@ function defaults() {
   return { v: 2, name: '', follow: true, look: 'flagship', accent: 'sapphire', flFont: 'system', glow: false, pin: null, salt: Math.random().toString(36).slice(2), lockAfter: 15,
     base: 200, goal: 2000, target: 120, learn: true, logs: [], ul: [], ideas: [], done: false, sound: true, vib: true, lastBackup: 0, btnAccent: 9, btnBlack: 0,
     ucats: [{ id: 'vid', n: 'Videos', w: 1 }, { id: 'web', n: 'Browsing', w: 1 }, { id: 'pic', n: 'Pictures', w: 2 }, { id: 'soc', n: 'Social media', w: 1 }, { id: 'oth', n: 'Other', w: 1 }],
-    gear: { own: [], eq: {} }, buys: [], dismiss: {} };
+    gear: { own: ['p23'], eq: { skin: 'p23' } }, buys: [], dismiss: {} };
 }
 function migrate(o) {
   if (!o.v || o.v < 2) {   // 1.0 and 1.1 kept small points; 1.2 keeps Nemesis Cash in hundreds
@@ -22,6 +22,8 @@ function migrate(o) {
     (o.ul || []).forEach(u => { if (!u.c) u.c = 'oth'; }); delete o.yv; o.v = 2;
   }
   if (o.sound === undefined) o.sound = true; if (o.vib === undefined) o.vib = true;
+  const ids = new Set(G.CATALOG.map(c => c.id));   // 1.4 replaced the old drawn gear with painted outfits: old purchases are refunded
+  o.buys = (o.buys || []).filter(b => ids.has(b.item)); if (o.gear) { o.gear.own = (o.gear.own || []).filter(i => ids.has(i)); o.gear.eq = o.gear.eq || {}; Object.keys(o.gear.eq).forEach(k => { if (!ids.has(o.gear.eq[k])) delete o.gear.eq[k]; }); if (o.gear.own.indexOf('p23') < 0) o.gear.own.unshift('p23'); if (!o.gear.eq.skin) o.gear.eq.skin = 'p23'; }
   const d = defaults(); ['ucats', 'gear', 'buys', 'dismiss'].forEach(k => { if (!o[k]) o[k] = d[k]; }); if (!o.gear.own) o.gear = d.gear;
   return o;
 }
@@ -39,6 +41,8 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 /* ---------- icons (Lucide style) ---------- */
 const IC = {
+  bars: '<path d="M5 20V10M12 20V4M19 20v-7"/>',
+  cog: '<circle cx="12" cy="12" r="3"/><path d="M12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M18.700 5.300l-2.100 2.100M7.400 16.600l-2.100 2.100"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="3"/><path d="M8 11V7a4 4 0 018 0v4"/>',
   wind: '<path d="M3 8h11a3 3 0 10-3-3M3 12h16a3 3 0 11-3 3M3 16h8"/>',
@@ -107,10 +111,16 @@ function build() {
 const ulScore = o => (o && o.hasUl) ? Math.round(Math.max(0, Math.min(1, (S.target - o.e) / S.target)) * 10) : 0;
 const ulBonus = o => ulScore(o) * 50;
 const score = o => o ? o.c + ulBonus(o) : 0;
+function chestDays() {   // every 7th day in a row pays a chest when that day is over
+  const I = build(), T = todayK(), out = []; let run = 0, prev = null;
+  Object.keys(I).filter(k => k < T).sort().forEach(k => { const ok = score(I[k]) > 0; run = ok ? ((prev && addDays(prev, 1) === k && run > 0) ? run + 1 : 1) : 0; prev = k; if (ok && run % 7 === 0) out.push(k); });
+  return out;
+}
 function ledger() {   // cash balance never goes below zero; the Unplug bonus of a day is paid when the day is over
   const I = build(), ev = []; let earned = 0, T = todayK();
   S.logs.forEach(l => { ev.push([l.t, l.p]); if (l.p > 0) earned += l.p; });
   Object.keys(I).forEach(k => { if (k >= T) return; const b = ulBonus(I[k]); if (b) { ev.push([fromKey(k).getTime() + 86399000, b]); earned += b; } });
+  chestDays().forEach(k => { ev.push([fromKey(k).getTime() + 86399000, CHEST]); earned += CHEST; });
   S.buys.forEach(b => ev.push([b.t, -b.cost]));
   ev.sort((a, b) => a[0] - b[0]); let bal = 0; ev.forEach(e => { bal = Math.max(0, bal + e[1]); });
   return { earned, bal };
@@ -307,35 +317,50 @@ function dangerInfo() {
 }
 
 /* ---------- The Nemesis (the game screen) ---------- */
-const slotChip = id => { const it = G.CATALOG.find(c => c.id === S.gear.eq[id]); return `<span class="g-slot${it ? '' : ' e'}" title="${it ? esc(it.name) : 'Empty'}">${it ? G.sprite(it.sp, 22) : '+'}</span>`; };
 let FX = null, curTier = 1, hubSt = -1;
 const coin = s => G.coin(s || 16);
 const gauge = (f, lab, val, col) => { const C = 2 * Math.PI * 22; return `<div class="g-gauge"><svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22" fill="none" stroke="#17305f" stroke-width="6"/><circle cx="28" cy="28" r="22" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(Math.max(0, Math.min(1, f)) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 28 28)"/></svg><b>${val}</b><span>${lab}</span></div>`; };
+const DANGER = ['Low', 'Moderate', 'High', 'Severe'], MOOD = ['Raging', 'Wounded', 'Beaten'], CHEST = 1000;
+const SOLID = {
+  duck: '<path d="M4 14.5c0-3 2.5-5 6-5h1.2c-.4-.7-.6-1.5-.6-2.4C10.6 4.7 12.3 3 14.5 3s3.9 1.7 3.9 4.1c0 1-.3 1.9-.9 2.6 2 .6 3.5 2.300 3.500 4.500 0 3.400-3.300 5.800-8 5.800H9.500C6.500 20 4 17.500 4 14.500z" fill="#fff"/><path d="M18.200 6.400l3.300 1.300-3.200 1.500z" fill="#ffb02a"/><circle cx="15.300" cy="6.300" r=".95" fill="#123"/>',
+  flag: '<path d="M6 3v18" stroke="#fff" stroke-width="2.200" stroke-linecap="round"/><path d="M7 4.500h12l-3.200 4 3.200 4H7z" fill="#fff"/>',
+  chest: '<rect x="3" y="9" width="18" height="11" rx="2" fill="#f2b33d" stroke="#7a4a0a" stroke-width="1.500"/><path d="M3 12V9a3 3 0 013-3h12a3 3 0 013 3v3z" fill="#ffd45a" stroke="#7a4a0a" stroke-width="1.500"/><rect x="10" y="11" width="4" height="5" rx=".8" fill="#7a4a0a"/>',
+  swirl: '<path d="M12 4a8 8 0 108 8" fill="none" stroke="#5ae0ff" stroke-width="2.200" stroke-linecap="round"/><path d="M12 8a4 4 0 104 4" fill="none" stroke="#5ae0ff" stroke-width="2.200" stroke-linecap="round"/>'
+};
+const solid = n => `<svg class="sld" viewBox="0 0 24 24" aria-hidden="true">${SOLID[n]}</svg>`;
+function slotRow() {
+  const skin = G.CATALOG.find(c => c.id === (S.gear.eq.skin || 'p23')), perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
+  const cells = [`<span class="g-slot" title="${esc(skin.name)}">${G.thumb(skin, 30)}</span>`];
+  perks.slice(0, 3).forEach(p => cells.push(`<span class="g-slot" title="${esc(p.name)}">${G.sprite(p.sp, 22)}</span>`));
+  while (cells.length < 4) cells.push('<span class="g-slot e">+</span>');
+  return cells.join('');
+}
 function viewToday() {
   const st = stats(), k = todayK(), o = st.I[k] || { d: 0, y: 0, m: 0, e: 0, c: 0, hasUl: false }, tn = tierNow(), vv = valuesNow(tn.tier);
   curTier = tn.tier; const fx = FX; FX = null;
   const net = o.c, pct = Math.max(0, Math.min(1, net / S.goal)), state = net >= S.goal ? 2 : pct >= 0.5 ? 1 : 0, C = 2 * Math.PI * 138;
-  const perks = S.gear.own.filter(i => (G.CATALOG.find(c => c.id === i) || {}).slot === 'perk').length;
-  const logs = S.logs.filter(l => dk(l.t) === k);
-  const nx = nextRank(st.lvl), fl = st.streak >= 100 ? 3 : st.streak >= 30 ? 2 : st.streak >= 7 ? 1 : 0;
+  const logs = S.logs.filter(l => dk(l.t) === k), fl = st.streak >= 100 ? 3 : st.streak >= 30 ? 2 : st.streak >= 7 ? 1 : 0;
+  const lo = needAt(st.lvl), span = needAt(st.lvl + 1) - lo, cur = Math.max(0, st.earned - lo), filled = st.streak % 7 || (st.streak ? 7 : 0);
   let burst = '';
   if (fx) {
     burst = `<div class="g-float ${fx.k}">${fx.p > 0 ? '+' : '−'}${fmt(Math.abs(fx.p))}</div>`;
     if (fx.k === 'd') for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + 0.3, r = 95 + (i * 37) % 40; burst += `<i class="g-spark" style="--dx:${Math.round(Math.cos(a) * r)}px;--dy:${Math.round(Math.sin(a) * r)}px;animation-delay:${(i % 4) * 40}ms"></i>`; }
   }
-  let out = `<div class="g-hud"><button class="g-av" data-to="arm" aria-label="Open the Armoury" title="Open the Armoury">${G.hero(st.lvl, S.gear.eq)}<span class="g-lv">Lv ${st.lvl} / 999</span></button>
-    <div class="g-hi"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">${fmt(st.earned)} earned in total</div>
-    <div class="g-xp"><i style="width:${Math.round(Math.max(0, Math.min(1, st.prog)) * 100)}%"></i></div><div class="g-xl"><span>${st.lvl >= 999 ? 'Highest level' : 'Level ' + (st.lvl + 1) + (nx && RANKS.some(r => r[0] === st.lvl + 1) ? ': ' + nx : '')}</span><span>${fmt(st.toNext)} to go</span></div></div>
-    <button class="cc orb g-orb" aria-label="Companion. Tap for a tip." title="Tap for a tip"><i></i></button></div>
-    <div class="g-row2"><div class="g-slots">${slotChip('head')}${slotChip('rhand')}${slotChip('lhand')}<span class="g-slot e" title="Perks">${perks ? perks : '+'}</span></div>
-    <button class="g-cash" data-to="arm" aria-label="${fmt(st.bal)} coins. Open the Armoury">${coin(20)}<b>${fmt(st.bal)}</b></button></div>`;
-  out += `<div class="g-arena${tn.tier >= 2 ? ' hard' : ''}${fx ? ' fx-' + fx.k : ''}"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="138" fill="rgba(5,9,26,.84)" stroke="#0a1230" stroke-width="14"/><circle cx="150" cy="150" r="138" fill="none" stroke="#17305f" stroke-width="8"/>
-    <circle cx="150" cy="150" r="138" fill="none" stroke="#5ad7ff" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(pct * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 150 150)" style="transition:stroke-dasharray 1.1s ease"/><circle cx="150" cy="150" r="118" fill="none" stroke="rgba(154,123,255,.5)" stroke-width="1.5" stroke-dasharray="3 7"/></svg>
-    <div class="g-cre">${G.nemesis(state)}</div><div class="g-prog">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today</div>${burst}</div>
-    <div class="g-threat"><span>${TIERW[tn.tier]}${tn.tier === 1 ? '' : ' · Ducked ' + (tn.tier >= 2 ? '▲' : '▼') + ' Yielded ' + (tn.tier >= 2 ? '▼' : '▲')}</span></div><div class="g-why">${tn.learned ? 'Learned from your own days.' : 'From the usual pattern. It learns as you log.'}</div>
-    <div class="g-btns"><button class="g-btn d" id="bd">Ducked<small>+${fmt(vv.d)}</small></button><button class="g-btn y" id="by">Yielded<small>−${fmt(vv.y)}</small></button></div>
-    <button class="g-btn q" id="br">${svg('wind')}Urge Rescue${has('potion') ? ' · +100' : ''}</button>
-    <div class="g-chips"><span class="g-chip fl fl${fl}">${svg('flame')}${st.streak} day streak</span>${logs.length ? `<button class="g-chip" id="ent" aria-label="Show today's entries">Ducked ${o.d} · Yielded ${o.y} ▴</button>` : `<span class="g-chip">Ducked ${o.d} · Yielded ${o.y}</span>`}</div>`;
+  const hex = (cls, id, ico, name, amt) => `<button class="hx ${cls}" id="${id}"><span class="hx-b"><span class="hx-f">${ico}<b>${name}</b><small>${amt}</small></span></span></button>`;
+  const bd = (cls, to, ico, a, b) => `<button class="g-bd ${cls}" ${to ? 'data-to="' + to + '"' : ''}><span class="hx-b"><span class="hx-f">${ico}<em>${a}</em>${b ? '<b>' + b + '</b>' : ''}</span></span></button>`;
+  let out = `<div class="g-hud"><button class="g-av bust" data-to="arm" aria-label="Open the Armoury" title="Open the Armoury">${G.hero(st.lvl, S.gear.eq)}<span class="g-lv">Lv ${st.lvl}</span></button>
+    <div class="g-hi"><div class="g-head"><div class="g-ttl">The Nemesis</div><button class="g-cash" data-to="arm" aria-label="${fmt(st.bal)} coins. Open the Armoury">${coin(20)}<b>${fmt(st.bal)}</b></button></div>
+    <div class="g-sub"><b>${fmt(st.earned)}</b> earned in total</div>
+    <div class="g-xp"><i style="width:${Math.round(Math.max(0, Math.min(1, st.prog)) * 100)}%"></i></div><div class="g-xl"><span>${st.lvl >= 999 ? 'Highest level' : fmt(cur) + ' / ' + fmt(span) + ' XP'}</span></div>
+    <div class="g-slots">${slotRow()}</div></div></div>`;
+  out += `<div class="g-arena${tn.tier >= 2 ? ' hard' : ''}${fx ? ' fx-' + fx.k : ''}"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="140" fill="rgba(5,6,18,.3)" stroke="#12081a" stroke-width="12"/><circle cx="150" cy="150" r="140" fill="none" stroke="#3a1230" stroke-width="7"/>
+    <circle cx="150" cy="150" r="140" fill="none" stroke="#ff5a5a" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(pct * C * 1.0).toFixed(1)} ${(C * 1.0).toFixed(1)}" transform="rotate(-90 150 150)" style="transition:stroke-dasharray 1.1s ease;filter:drop-shadow(0 0 6px #ff6a4a)"/></svg>
+    <div class="g-cre">${G.nemesis(state, true)}</div>
+    ${bd('l1', '', svg('flame'), 'Danger', DANGER[tn.tier])}${bd('l2', '', solid('swirl'), 'Mood', MOOD[state])}${bd('r1', 'prog', svg('list'), 'Stats', '')}${bd('r2', 'arm', svg('star'), 'Perks', '')}
+    ${logs.length ? `<button class="g-prog" id="ent" aria-label="Show today's entries">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today ▴</button>` : `<div class="g-prog">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today</div>`}${burst}</div>
+    <div class="g-hx">${hex('q', 'br', svg('wind'), 'Urge Rescue', '+' + fmt(vv.d + (has('potion') ? 100 : 0)))}${hex('d', 'bd', solid('duck'), 'Ducked', '+' + fmt(vv.d))}${hex('y', 'by', solid('flag'), 'Yielded', '−' + fmt(vv.y))}</div>
+    <div class="g-strip"><div class="gs-top"><span class="gs-fl fl${fl}">${svg('flame')}</span><b>${st.streak} day streak</b><span class="sep"></span><span class="pos">+${fmt(vv.d)} if Ducked</span><span class="sep"></span><span class="neg">−${fmt(vv.y)} if Yielded</span></div>
+    <div class="gs-bot"><div class="gs-dots">${Array.from({ length: 7 }, (_, n) => `<i class="${n < filled ? 'on' : ''}"></i>`).join('')}</div><span class="gs-ch" title="Day 7 chest: +${fmt(CHEST)}">${solid('chest')}<small>+${fmt(CHEST)}</small></span></div></div>`;
   return out;
 }
 function entriesSheet() {
@@ -348,7 +373,7 @@ function closeGS() { const d = $('#gsb'); if (d) d.remove(); }
 function levelUp(a, b) {
   closeGS(); const un = G.CATALOG.filter(c => c.level > a && c.level <= b);
   const d = document.createElement('div'); d.className = 'lvlup';
-  d.innerHTML = `<div class="lu-in"><div class="g-cap">Level up</div><div class="lu-hero">${G.hero(b, S.gear.eq)}</div><div class="lu-n">Level ${b}</div><div class="lu-r">${rankName(b)}</div>${un.length ? `<div class="g-sub">New in the Armoury</div><div class="lu-items">${un.map(c => G.sprite(c.sp, 40)).join('')}</div>` : ''}<div class="g-sub" style="margin-top:14px">Tap to continue</div></div>`;
+  d.innerHTML = `<div class="lu-in"><div class="g-cap">Level up</div><div class="lu-hero">${G.hero(b, S.gear.eq)}</div><div class="lu-n">Level ${b}</div><div class="lu-r">${rankName(b)}</div>${un.length ? `<div class="g-sub">New in the Armoury</div><div class="lu-items">${un.map(c => G.thumb(c, 48)).join('')}</div>` : ''}<div class="g-sub" style="margin-top:14px">Tap to continue</div></div>`;
   document.body.appendChild(d); const x = () => { d.classList.add('out'); setTimeout(() => d.remove(), 380); }; d.onclick = x; setTimeout(x, 5200);
   tone(523, .3); setTimeout(() => tone(659, .3), 130); setTimeout(() => tone(784, .3), 260); setTimeout(() => tone(1046, .7), 390); vib([20, 40, 20, 40, 70]);
 }
@@ -360,29 +385,29 @@ function buyItem(id) {
   if (st.lvl < it.level) { say('You need level ' + it.level + ' for this.'); return; }
   if (st.bal < it.price) { say('You need {c} ' + fmt(it.price - st.bal) + ' more.'); return; }
   const b = { id: 'b' + Date.now(), t: Date.now(), item: id, cost: it.price }, had = S.gear.eq[it.slot];
-  S.buys.push(b); S.gear.own.push(id); if (it.slot !== 'perk' && !had) S.gear.eq[it.slot] = id; save(); tone(740, .3); setTimeout(() => tone(990, .45), 140); vib([20, 40, 20]); render();
-  say(it.name + ' is yours.', () => { S.buys = S.buys.filter(x => x.id !== b.id); S.gear.own = S.gear.own.filter(x => x !== id); if (S.gear.eq[it.slot] === id) delete S.gear.eq[it.slot]; save(); });
+  S.buys.push(b); S.gear.own.push(id); if (it.slot === 'skin') S.gear.eq.skin = id; save(); tone(740, .3); setTimeout(() => tone(990, .45), 140); vib([20, 40, 20]); render();
+  say(it.name + (it.slot === 'skin' ? ' is yours, and you are wearing it.' : ' is yours.'), () => { S.buys = S.buys.filter(x => x.id !== b.id); S.gear.own = S.gear.own.filter(x => x !== id); if (S.gear.eq[it.slot] === id) { if (had) S.gear.eq[it.slot] = had; else delete S.gear.eq[it.slot]; } save(); });
 }
-function equipItem(id, on) {
-  const it = G.CATALOG.find(c => c.id === id); if (!it || !has(id) || it.slot === 'perk') return;
-  if (on) S.gear.eq[it.slot] = id; else delete S.gear.eq[it.slot]; save(); tone(on ? 620 : 420, .2); vib(10); render();
+function equipItem(id) {
+  const it = G.CATALOG.find(c => c.id === id); if (!it || !has(id) || it.slot !== 'skin') return;
+  S.gear.eq.skin = id; save(); tone(620, .2); vib(10); render();
+}
+function itemCard(it, st) {
+  const own = has(it.id), worn = S.gear.eq.skin === it.id, locked = st.lvl < it.level, afford = st.bal >= it.price; let act;
+  if (own) act = it.slot === 'perk' ? '<span class="g-own">Active</span>' : worn ? '<span class="g-own">Wearing</span>' : `<button class="g-btn p sm" data-eq="${it.id}">Wear</button>`;
+  else if (locked) act = `<span class="g-lock">Level ${it.level}</span>`;
+  else act = `<button class="g-btn p sm${afford ? '' : ' off'}" data-buy="${it.id}">Buy · ${coin(14)} ${fmt(it.price)}</button>`;
+  return `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked ? ' locked' : ''}"><div class="g-art">${G.thumb(it, it.art ? 84 : 52)}</div><div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk · ' + esc(it.perk) : 'Outfit'}</div>${act}</div>`;
 }
 function viewArmoury() {
-  const st = stats(), eq = S.gear.eq, perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
+  const st = stats(), eq = S.gear.eq, skin = G.CATALOG.find(c => c.id === (eq.skin || 'p23')), perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
   const rate = st.D + st.Y ? st.D / (st.D + st.Y) : 0;
-  let out = `<div class="g-top"><div class="g-title">Armoury</div><div class="g-cash static">${coin(20)}<b>${fmt(st.bal)}</b></div></div><div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-sub" style="margin-top:10px">Your level follows the coins you earn, never the coins you spend.</div></div></div>`;
+  let out = `<div class="g-top"><div class="g-title">Armoury</div><div class="g-cash static">${coin(20)}<b>${fmt(st.bal)}</b></div></div><div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-sub" style="margin-top:8px">Wearing <b>${esc(skin.name)}</b></div><div class="g-sub" style="margin-top:10px">Your level follows the coins you earn, never the coins you spend.</div></div></div>`;
   out += `<div class="g-gauges">${gauge(rate, 'Resolve', Math.round(rate * 100) + '%', '#4fe0a8')}${gauge(Math.min(1, st.streak / 30), 'Streak', st.streak + 'd', '#ffb35a')}${gauge(st.prog, 'Climb', Math.round(Math.max(0, Math.min(1, st.prog)) * 100) + '%', '#5ad7ff')}</div>`;
-  if (perks.length) out += `<div class="g-card"><div class="g-cap">Active perks</div>${perks.map(p => `<div class="g-perk">${G.sprite(p.sp, 28)}<span><b>${esc(p.name)}</b><br><small>${esc(p.perk)}</small></span></div>`).join('')}</div>`;
-  out += `<div class="g-cap" style="margin:14px 4px 8px">Gear and perks</div><div class="g-shop">`;
-  G.CATALOG.slice().sort((a, b) => a.level - b.level).forEach(it => {
-    const own = has(it.id), worn = eq[it.slot] === it.id && it.slot !== 'perk', locked = st.lvl < it.level, afford = st.bal >= it.price;
-    let act;
-    if (own) act = it.slot === 'perk' ? '<span class="g-own">Active</span>' : worn ? `<button class="g-btn q sm" data-ueq="${it.id}">Take off</button>` : `<button class="g-btn p sm" data-eq="${it.id}">Wear</button>`;
-    else if (locked) act = `<span class="g-lock">Level ${it.level}</span>`;
-    else act = `<button class="g-btn p sm${afford ? '' : ' off'}" data-buy="${it.id}">Buy · ${coin(14)} ${fmt(it.price)}</button>`;
-    out += `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked ? ' locked' : ''}"><div class="g-art">${G.sprite(it.sp, 52)}</div><div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk' : G.SLOTS[it.slot]}${own ? '' : ' · ' + coin(12) + ' ' + fmt(it.price)}</div>${act}</div>`;
-  });
-  return out + '</div>';
+  const by = sl => G.CATALOG.filter(c => c.slot === sl).sort((a, b) => a.level - b.level);
+  out += `<div class="g-cap" style="margin:16px 4px 8px">Outfits</div><div class="g-shop">${by('skin').map(it => itemCard(it, st)).join('')}</div>`;
+  out += `<div class="g-cap" style="margin:16px 4px 8px">Perks</div><div class="g-shop" id="perks">${by('perk').map(it => itemCard(it, st)).join('')}</div>`;
+  return out;
 }
 
 /* ---------- Unplug ---------- */
@@ -519,7 +544,7 @@ document.addEventListener('click', e => {
   if (t.id === 'gsb' || c('#gsx')) return closeGS(); if (c('#ent')) return entriesSheet();
   if ((b = c('.nav-item'))) { tone(screen === b.dataset.s ? 400 : 520, .12, .05); vib(8); closeGS(); if (b.dataset.s === 'set' && screen === 'set') setPage = 'top'; screen = b.dataset.s; render(); window.scrollTo(0, 0); return; }
   if ((b = c('[data-to]'))) { screen = b.dataset.to; render(); window.scrollTo(0, 0); return; }
-  if ((b = c('[data-buy]'))) return buyItem(b.dataset.buy); if ((b = c('[data-eq]'))) return equipItem(b.dataset.eq, true); if ((b = c('[data-ueq]'))) return equipItem(b.dataset.ueq, false);
+  if ((b = c('[data-buy]'))) return buyItem(b.dataset.buy); if ((b = c('[data-eq]'))) return equipItem(b.dataset.eq);
   if ((b = c('[data-uc]'))) { ucSel = b.dataset.uc; return render(); }
   if ((b = c('[data-cw]'))) { const cc = S.ucats.find(x => x.id === b.dataset.cw); cc.w = Math.max(0.5, Math.min(3, cc.w + 0.5 * +b.dataset.d)); save(); return render(); }
   if ((b = c('[data-cdel]'))) { S.ucats = S.ucats.filter(x => x.id !== b.dataset.cdel); if (ucSel === b.dataset.cdel) ucSel = null; save(); return render(); }
@@ -566,7 +591,8 @@ function wizard(step) {
 
 /* ---------- start ---------- */
 if (window.GBtnLook) GBtnLook.config({ prefs: () => S, set: (k, v) => { S[k] = v; save(); }, render });
-$('#world').innerHTML = G.scene(); 
+const NAVI = { arm: 'shield', prog: 'bars', unp: 'phone', set: 'cog' }; $$('.nav-item[data-s]').forEach(n => { if (NAVI[n.dataset.s]) n.innerHTML = svg(NAVI[n.dataset.s]) + '<span>' + n.textContent + '</span>'; });
+
 apply(); render();
 if (!S.done) wizard(1); else if (S.pin) lockNow();
 window.__ht = { S: () => S, stats, score, build, tierNow, valuesNow, levelOf, needAt, ledger, riskAt, tierValues };

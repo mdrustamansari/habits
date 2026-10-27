@@ -23,22 +23,19 @@ const SP = {
 
 /* Items. slot: head, rhand, lhand, body, cloak, feet, neck, aura (drawn on the hero) or perk (a power, not drawn).
    Prices are multiples of 100. "level" is the hero level needed to buy it. */
+const OUTFITS = [   // [number on the art sheet, name, level, price, rarity]
+  [12, 'Forest Archer', 2, 1200, ''], [25, 'Pine Shadow', 3, 1600, ''], [1, 'Azure Guard', 4, 2000, ''], [21, 'Cloud Walker', 5, 2400, ''], [15, 'Copper Captain', 6, 3000, ''], [19, 'Teal Marshal', 8, 3600, ''],
+  [9, 'Sky Knight', 10, 4400, ''], [8, 'Sapphire Duke', 12, 5200, ''], [2, 'Crimson Regent', 14, 6000, 'rare'], [7, 'Ember Prince', 16, 7200, 'rare'], [20, 'Garnet Lord', 18, 8400, 'rare'], [16, 'Amethyst Heir', 20, 9600, 'rare'],
+  [10, 'Violet Regent', 24, 11000, 'rare'], [24, 'Rose Prince', 28, 12000, 'rare'], [14, 'Crystal Mage', 32, 14000, 'rare'], [17, 'Royal Duelist', 36, 16000, 'rare'], [4, 'Night Warden', 42, 20000, 'epic'],
+  [3, 'Ivory Heir', 48, 24000, 'epic'], [11, 'Pearl Crown', 55, 28000, 'epic'], [6, 'Frost Monarch', 62, 34000, 'epic'], [13, 'Winter King', 72, 40000, 'epic'], [18, 'Ash Sovereign', 84, 48000, 'epic'], [22, 'Starry Night', 100, 60000, 'epic']
+];
 const CATALOG = [
   { id: 'potion', name: 'Calm Potion', slot: 'perk', sp: 'potion', price: 1200, level: 3, rar: '', perk: 'Urge Rescue pays 100 extra.' },
-  { id: 'boots', name: 'Leather Boots', slot: 'feet', sp: 'boots', price: 800, level: 2, rar: '' },
-  { id: 'shield', name: 'Blue Shield', slot: 'lhand', sp: 'shield', price: 1600, level: 5, rar: '' },
-  { id: 'sword', name: 'Iron Sword', slot: 'rhand', sp: 'sword', price: 2000, level: 6, rar: 'rare' },
-  { id: 'cloak', name: 'Royal Cloak', slot: 'cloak', sp: 'cloak', price: 2400, level: 8, rar: 'rare' },
-  { id: 'crown', name: 'Gold Crown', slot: 'head', sp: 'crown', price: 3000, level: 10, rar: 'epic' },
   { id: 'weights', name: 'Strong Body', slot: 'perk', sp: 'weights', price: 3600, level: 12, rar: '', perk: 'Ducked pays 100 more in hard times.' },
-  { id: 'helm', name: 'Steel Helm', slot: 'head', sp: 'helm', price: 2600, level: 14, rar: 'rare' },
-  { id: 'armour', name: 'Chest Armour', slot: 'body', sp: 'armour', price: 4800, level: 20, rar: 'rare' },
   { id: 'heart', name: 'Heart Vigour', slot: 'perk', sp: 'heart', price: 8000, level: 25, rar: 'epic', perk: 'Every Yielded costs 100 less (never below 100).' },
-  { id: 'amulet', name: 'Focus Amulet', slot: 'neck', sp: 'amulet', price: 6000, level: 30, rar: 'epic' },
-  { id: 'staff', name: 'Mind Staff', slot: 'rhand', sp: 'staff', price: 5600, level: 40, rar: 'rare' },
-  { id: 'star', name: 'Star Halo', slot: 'aura', sp: 'star', price: 12000, level: 60, rar: 'epic' }
-];
-const SLOTS = { head: 'Head', rhand: 'Right hand', lhand: 'Left hand', body: 'Body', cloak: 'Cloak', feet: 'Feet', neck: 'Neck', aura: 'Halo', perk: 'Perk' };
+  { id: 'p23', name: 'Golden Prince', slot: 'skin', art: 23, price: 0, level: 1, rar: '' }
+].concat(OUTFITS.map(o => ({ id: 'p' + String(o[0]).padStart(2, '0'), name: o[1], slot: 'skin', art: o[0], price: o[3], level: o[2], rar: o[4] })));
+const SLOTS = { skin: 'Outfit', head: 'Head', rhand: 'Right hand', lhand: 'Left hand', body: 'Body', cloak: 'Cloak', feet: 'Feet', neck: 'Neck', aura: 'Halo', perk: 'Perk' };
 
 /* ---- pixel helpers ---- */
 const hexRGB = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -79,14 +76,24 @@ function svgOf(cells, cls, extra) {
   return `<svg class="px ${cls || ''}" viewBox="${ox} ${oy} ${d} ${d}" ${extra || ''} aria-hidden="true">${Object.keys(cells).map(k => { const p = k.split(','); return `<rect x="${p[0]}" y="${p[1]}" width="1.02" height="1.02" fill="${cells[k]}"/>`; }).join('')}</svg>`;
 }
 const cache = {};
+function cellsToImg(cells, size) {   // one small PNG per sprite, drawn once: far lighter than thousands of SVG rectangles
+  try {
+    const ks = Object.keys(cells).map(k => k.split(',').map(Number)); if (!ks.length) return '';
+    const x0 = Math.min.apply(null, ks.map(a => a[0])), y0 = Math.min.apply(null, ks.map(a => a[1])), x1 = Math.max.apply(null, ks.map(a => a[0])) + 1, y1 = Math.max.apply(null, ks.map(a => a[1])) + 1;
+    const w = x1 - x0, h = y1 - y0, d = Math.max(w, h), c = document.createElement('canvas'); c.width = c.height = d; const g = c.getContext('2d'); if (!g) return '';
+    const ox = Math.floor((d - w) / 2), oy = Math.floor((d - h) / 2);
+    Object.keys(cells).forEach(k => { const p = k.split(',').map(Number); g.fillStyle = cells[k]; g.fillRect(p[0] - x0 + ox, p[1] - y0 + oy, 1, 1); });
+    return `<img class="px" src="${c.toDataURL('image/png')}" ${size ? `width="${size}" height="${size}"` : ''} alt="" draggable="false">`;
+  } catch (e) { return ''; }
+}
 function sprite(name, size) {
   const key = name + '|' + (size || 0);
-  return cache[key] || (cache[key] = svgOf(stylize(up(rowsToCells(SP[name]))), '', size ? `width="${size}" height="${size}"` : ''));
+  return cache[key] || (cache[key] = (() => { const c = stylize(up(rowsToCells(SP[name]))); return cellsToImg(c, size) || svgOf(c, '', size ? `width="${size}" height="${size}"` : ''); })());
 }
 
 /* ---- the pixel stick hero. look: 0 newborn, 1 child, 2 young, 3 grown, 4 tall. eq: { slot: itemId } ---- */
 function bodyLook(level) { return level < 4 ? 0 : level < 16 ? 1 : level < 41 ? 2 : level < 261 ? 3 : 4; }
-function hero(level, eq, size) {
+function heroOld(level, eq, size) {
   eq = eq || {};
   const g = {}, set = (x, y, c) => { if (x >= 0 && y >= 0 && x < 36 && y < 44) g[x + ',' + y] = c; };
   const line = (x0, y0, x1, y1, c) => { const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx - dy; for (;;) { set(x0, y0, c); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 > -dy) { e -= dy; x0 += sx; } if (e2 < dx) { e += dx; y0 += sy; } } };
@@ -110,22 +117,33 @@ function hero(level, eq, size) {
   return svgOf(stylize(up(g)), 'hero', size ? `width="${size}" height="${size}"` : '');
 }
 
+/* ---- the prince: painted pixel art, one image per outfit (art/prince-NN.webp) ---- */
+const artOf = id => { const it = CATALOG.find(c => c.id === id) || CATALOG.find(c => c.id === 'p23'); return it.art; };
+const prince = id => `<img class="pr" src="art/prince-${String(artOf(id)).padStart(2, '0')}.webp" alt="" draggable="false">`;
+function hero(level, eq) { return prince((eq && eq.skin) || 'p23'); }
+const thumb = (it, sz) => it.art ? `<span class="bust" style="width:${sz}px;height:${sz}px">${prince(it.id)}</span>` : sprite(it.sp, sz);
+
 /* ---- the Nemesis: a smooth creature. state 0 raging, 1 weakened, 2 defeated ---- */
 let nid = 0;
-function nemesis(state) {
-  const i = 'n' + (nid++), s = state || 0, sc = s === 0 ? 1 : s === 1 ? 0.84 : 0.7;
+function nemesis(state, full) {
+  const i = 'n' + (nid++), s = state || 0, sc = s === 0 ? 1 : s === 1 ? 0.86 : 0.74;
   const eyes = s === 2
     ? '<path d="M62 84l18 18M80 84L62 102M120 84l18 18M138 84l-18 18" stroke="#2a0f2a" stroke-width="6" stroke-linecap="round"/>'
-    : `<path d="M58 88q22-18 42 4q-6 16-24 16q-16 0-18-20z" fill="url(#${i}e)"/><path d="M142 88q-22-18-42 4q6 16 24 16q16 0 18-20z" fill="url(#${i}e)"/><ellipse cx="78" cy="96" rx="3.4" ry="9" fill="#2a0f2a"/><ellipse cx="122" cy="96" rx="3.4" ry="9" fill="#2a0f2a"/>${s === 1 ? '<path d="M60 74q18-8 36 4M104 78q18-12 36-4" stroke="#8a2240" stroke-width="5" fill="none" stroke-linecap="round"/>' : '<path d="M56 78l44 12M144 78l-44 12" stroke="#5e1230" stroke-width="7" stroke-linecap="round"/>'}`;
+    : `<path d="M58 88q22-18 42 4q-6 16-24 16q-16 0-18-20z" fill="url(#${i}e)"/><path d="M142 88q-22-18-42 4q6 16 24 16q16 0 18-20z" fill="url(#${i}e)"/><ellipse cx="78" cy="96" rx="3.4" ry="9" fill="#2a0f2a"/><ellipse cx="122" cy="96" rx="3.4" ry="9" fill="#2a0f2a"/>${s === 1 ? '<path d="M60 76q18-8 36 4M104 80q18-12 36-4" stroke="#8a2240" stroke-width="5" fill="none" stroke-linecap="round"/>' : '<path d="M54 76l46 14M146 76l-46 14" stroke="#4a0e28" stroke-width="8" stroke-linecap="round"/>'}`;
   const mouth = s === 2
     ? '<path d="M78 138q22 10 44 0" stroke="#2a0f2a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M112 140q6 16 14 10" fill="#ff7a9a"/>'
     : s === 1 ? '<path d="M76 140q24-8 48 0" stroke="#2a0f2a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M146 66q6 10 0 14q-6-4 0-14z" fill="#8be3ff"/>'
-    : '<path d="M66 134q34 26 68 0q-10 6-34 6t-34-6z" fill="#2a0f2a"/><path d="M76 138l6 12 6-10M92 141l6 14 6-14M110 141l6 12 6-12" fill="#fff"/>';
+    : '<path d="M62 132q38 32 76 0q-10 8-38 8t-38-8z" fill="#2a0f2a"/><path d="M70 135l7 15 7-12M86 140l7 17 7-17M106 140l7 15 7-17M122 138l7 12 5-14" fill="#fff" stroke="#2a0f2a" stroke-width="1.2" stroke-linejoin="round"/>';
   const body = s === 2 ? ['#c9b8c9', '#8d7490', '#4c3a58'] : ['#ff9a6a', '#e0463f', '#7a1d3a'];
-  return `<svg class="nem" viewBox="0 0 200 200" aria-hidden="true"><defs><radialGradient id="${i}b" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="${body[0]}"/><stop offset=".55" stop-color="${body[1]}"/><stop offset="1" stop-color="${body[2]}"/></radialGradient><radialGradient id="${i}h" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity=".5"/><stop offset="1" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity="0"/></radialGradient><linearGradient id="${i}e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6a8"/><stop offset="1" stop-color="#ffb32a"/></linearGradient></defs>
-  <g transform="translate(100 108) scale(${sc}) translate(-100 -108)${s === 2 ? ' rotate(-8 100 120)' : ''}"><circle cx="100" cy="106" r="96" fill="url(#${i}h)"/>
-  <path d="M52 62Q30 34 46 12q8 22 34 36z" fill="#ffd45a" stroke="#7a1d3a" stroke-width="3" stroke-linejoin="round"/><path d="M148 62Q170 34 154 12q-8 22-34 36z" fill="#ffd45a" stroke="#7a1d3a" stroke-width="3" stroke-linejoin="round"/>
-  <circle cx="100" cy="112" r="72" fill="url(#${i}b)" stroke="#4a1030" stroke-width="4"/><ellipse cx="76" cy="70" rx="24" ry="12" fill="#fff" opacity=".22" transform="rotate(-24 76 70)"/><g class="ey">${eyes}</g>${mouth}</g></svg>`;
+  const gem = s === 2 ? ['#d8caf5', '#8d7bc0', '#4a3a72'] : ['#ffb0a0', '#e0183f', '#6e0a2a'];
+  const crystal = (x, y, k, r) => `<g transform="translate(${x} ${y}) rotate(${r}) scale(${k})"><path d="M0-22L11-4 0 22-11-4z" fill="url(#${i}c)" stroke="#4a0a20" stroke-width="2.2" stroke-linejoin="round"/><path d="M0-22L11-4 0-1z" fill="#fff" opacity=".38"/><path d="M0-1L11-4 0 22z" fill="#500" opacity=".28"/></g>`;
+  const fist = sg => `<g transform="translate(${sg > 0 ? 176 : 24} 140) scale(${sg} 1)"><path d="M-22-6q2-22 24-19q22 3 19 24q-3 19-24 17q-19-2-19-22z" fill="#4b4358" stroke="#1c1426" stroke-width="3"/><path d="M-17-14l-11-12 15 5zM-3-23l-3-15 11 11zM11-14l9-11 1 15z" fill="#9a98b0" stroke="#1c1426" stroke-width="2" stroke-linejoin="round"/><circle cx="2" cy="-2" r="8" fill="url(#${i}c)" stroke="#1c1426" stroke-width="2"/></g>`;
+  const armour = full ? `${crystal(24, 66, .9, -14)}${crystal(176, 60, 1, 12)}${crystal(10, 112, .6, -24)}${crystal(192, 112, .7, 20)}${fist(1)}${fist(-1)}` : '';
+  const plate = full ? '<path d="M70 52l-16-8 12 16zM130 52l16-8-12 16z" fill="#9a98b0" stroke="#1c1426" stroke-width="2" stroke-linejoin="round"/><path d="M100 18L126 50 100 80 74 50z" fill="#4b4358" stroke="#1c1426" stroke-width="3" stroke-linejoin="round"/><path d="M100 30L116 50 100 68 84 50z" fill="url(#' + i + 'c)" stroke="#1c1426" stroke-width="2"/><path d="M100 30L116 50 100 52z" fill="#fff" opacity=".35"/>' : '';
+  const horn = '<path d="M52 62Q24 34 42 6q10 24 38 38z" fill="url(#' + i + 'g)" stroke="#6a2a10" stroke-width="3" stroke-linejoin="round"/><path d="M148 62Q176 34 158 6q-10 24-38 38z" fill="url(#' + i + 'g)" stroke="#6a2a10" stroke-width="3" stroke-linejoin="round"/>' + (full ? '<path d="M46 46q6-4 14-4M40 32q8-2 14 2M154 46q-6-4-14-4M160 32q-8-2-14 2" stroke="#9a5a14" stroke-width="2.4" fill="none" stroke-linecap="round"/>' : '');
+  return `<svg class="nem" viewBox="${full ? '-6 -6 212 212' : '0 0 200 200'}" aria-hidden="true"><defs><radialGradient id="${i}b" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="${body[0]}"/><stop offset=".55" stop-color="${body[1]}"/><stop offset="1" stop-color="${body[2]}"/></radialGradient><radialGradient id="${i}h" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity=".5"/><stop offset="1" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity="0"/></radialGradient><linearGradient id="${i}e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6a8"/><stop offset="1" stop-color="#ffb32a"/></linearGradient><linearGradient id="${i}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset=".6" stop-color="#f2a62e"/><stop offset="1" stop-color="#b8661a"/></linearGradient><linearGradient id="${i}c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${gem[0]}"/><stop offset=".5" stop-color="${gem[1]}"/><stop offset="1" stop-color="${gem[2]}"/></linearGradient></defs>
+  <g transform="translate(100 108) scale(${sc}) translate(-100 -108)${s === 2 ? ' rotate(-8 100 120)' : ''}"><circle cx="100" cy="106" r="98" fill="url(#${i}h)"/>${armour}${horn}
+  <circle cx="100" cy="112" r="72" fill="url(#${i}b)" stroke="#4a1030" stroke-width="4"/><ellipse cx="76" cy="70" rx="24" ry="12" fill="#fff" opacity=".22" transform="rotate(-24 76 70)"/>${plate}<g class="ey">${eyes}</g>${mouth}</g></svg>`;
 }
 
 /* ---- the world behind The Nemesis: moonlit citadel, drawn once, never animated ---- */
@@ -153,5 +171,5 @@ function scene() {
 }
 
 const coin = sz => `<svg class="coin" width="${sz}" height="${sz}" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#ffcf40" stroke="#8a5208" stroke-width="1.5"/><circle cx="10" cy="10" r="6.4" fill="none" stroke="#fff0a8" stroke-width="1.2"/><path d="M10 6l3.4 4L10 14 6.6 10z" fill="#c98a12" stroke="#8a5208" stroke-width=".8" stroke-linejoin="round"/><path d="M4.6 7.4A6.2 6.2 0 0 1 8 4.2" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".8"/></svg>`;
-root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, nemesis, scene, bodyLook };
+root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, prince, thumb, nemesis, scene, bodyLook };
 })(window);
