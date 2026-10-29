@@ -2,7 +2,7 @@
    Look: shared style files (style.css, flagship.css, buttons.css, btnlook.js). Words follow DESIGN-LANGUAGE.md section 10. */
 (function () {
 'use strict';
-const KEY = 'ht_v1', VERSION = '1.5';
+const KEY = 'ht_v1', VERSION = '1.8';
 const G = window.HTGame;
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -335,6 +335,10 @@ function slotRow() {
   while (cells.length < 4) cells.push('<span class="g-slot e">+</span>');
   return cells.join('');
 }
+const molten = id => { const c = [50, 55], P = [[50, 5], [95, 30], [95, 80], [50, 105], [5, 80], [5, 30]], sc = k => P.map(([x, y]) => (c[0] + (x - c[0]) * k).toFixed(1) + ',' + (c[1] + (y - c[1]) * k).toFixed(1)).join(' ');
+  return `<svg class="frm" viewBox="0 0 100 110" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="mo${id}" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="95" y2="105"><stop offset="0" stop-color="#fff7b8"/><stop offset=".2" stop-color="#ffd23a"/><stop offset=".42" stop-color="#ff9410"/><stop offset=".6" stop-color="#ffd84a"/><stop offset=".8" stop-color="#ff8a0a"/><stop offset="1" stop-color="#ffe27a"/></linearGradient><filter id="bl${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter></defs>
+  <polygon points="${sc(1)}" fill="none" stroke="#ff8a1c" stroke-width="9" stroke-linejoin="round" opacity=".55" filter="url(#bl${id})"/><polygon points="${sc(1)}" fill="none" stroke="#6a2a02" stroke-width="8.4" stroke-linejoin="round"/><polygon points="${sc(1)}" fill="none" stroke="url(#mo${id})" stroke-width="6.6" stroke-linejoin="round"/>
+  <polygon points="${sc(.985)}" fill="none" stroke="#fffbd6" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="26 190" stroke-dashoffset="-6" opacity=".9"/><polygon points="${sc(.985)}" fill="none" stroke="#fffbd6" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="14 190" stroke-dashoffset="-150" opacity=".7"/><polygon points="${sc(.935)}" fill="none" stroke="#a24c06" stroke-width="1" stroke-linejoin="round" opacity=".8"/></svg>`; };
 function viewToday() {
   const st = stats(), k = todayK(), o = st.I[k] || { d: 0, y: 0, m: 0, e: 0, c: 0, hasUl: false }, tn = tierNow(), vv = valuesNow(tn.tier);
   curTier = tn.tier; const fx = FX; FX = null;
@@ -346,7 +350,7 @@ function viewToday() {
     burst = `<div class="g-float ${fx.k}">${fx.p > 0 ? '+' : '−'}${fmt(Math.abs(fx.p))}</div>`;
     if (fx.k === 'd') for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + 0.3, r = 95 + (i * 37) % 40; burst += `<i class="g-spark" style="--dx:${Math.round(Math.cos(a) * r)}px;--dy:${Math.round(Math.sin(a) * r)}px;animation-delay:${(i % 4) * 40}ms"></i>`; }
   }
-  const hex = (cls, id, ico, name, amt) => `<button class="hx ${cls}" id="${id}"><span class="hx-b"><span class="hx-f">${ico}<b>${name}</b><small>${amt}</small></span></span></button>`;
+  const hex = (cls, id, ico, name, amt) => `<button class="hx ${cls}" id="${id}"><span class="hx-b">${molten(id)}<span class="hx-f">${ico}<b>${name}</b><small>${amt}</small></span></span></button>`;
   const bd = (cls, to, ico, a, b) => `<button class="g-bd ${cls}" ${to ? 'data-to="' + to + '"' : ''}><span class="hx-b"><span class="hx-f">${ico}<em>${a}</em>${b ? '<b>' + b + '</b>' : ''}</span></span></button>`;
   let out = `<div class="g-hud"><button class="g-av bust" data-to="arm" aria-label="Open the Armoury" title="Open the Armoury">${G.hero(st.lvl, S.gear.eq)}<span class="g-lv">Lv ${st.lvl}</span></button>
     <div class="g-hi"><div class="g-head"><div class="g-ttl">The Nemesis</div><button class="g-cash" data-to="arm" aria-label="${fmt(st.bal)} coins. Open the Armoury">${coin(20)}<b>${fmt(st.bal)}</b></button></div>
@@ -355,7 +359,7 @@ function viewToday() {
     <div class="g-slots">${slotRow()}</div></div></div>`;
   out += `<div class="g-arena${tn.tier >= 2 ? ' hard' : ''}${fx ? ' fx-' + fx.k : ''}"><svg class="g-ring" viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="140" fill="rgba(5,6,18,.2)" stroke="#12081a" stroke-width="12"/><circle cx="150" cy="150" r="140" fill="none" stroke="#3a1230" stroke-width="7"/>
     <circle cx="150" cy="150" r="140" fill="none" stroke="#ff5a5a" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(pct * C * 1.0).toFixed(1)} ${(C * 1.0).toFixed(1)}" transform="rotate(-90 150 150)" style="transition:stroke-dasharray 1.1s ease;filter:drop-shadow(0 0 6px #ff6a4a)"/></svg>
-    <div class="g-cre">${G.nemesis(state, true)}</div>
+    <div class="g-cre">${G.nemesis(state, true, { tier: tn.tier, fx: fx && fx.k })}</div>
     ${bd('l1', '', svg('flame'), 'Danger', DANGER[tn.tier])}${bd('l2', '', solid('swirl'), 'Mood', MOOD[state])}${bd('r1', 'prog', svg('list'), 'Stats', '')}${bd('r2', 'arm', svg('star'), 'Perks', '')}
     ${logs.length ? `<button class="g-prog" id="ent" aria-label="Show today's entries">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today ▴</button>` : `<div class="g-prog">${net < 0 ? '−' : '+'}${fmt(Math.abs(net))} of ${fmt(S.goal)} today</div>`}${burst}</div>
     <div class="g-hx">${hex('q', 'br', svg('wind'), 'Urge Rescue', '+' + fmt(vv.d + (has('potion') ? 100 : 0)))}${hex('d', 'bd', solid('duck'), 'Ducked', '+' + fmt(vv.d))}${hex('y', 'by', solid('flag'), 'Yielded', '−' + fmt(vv.y))}</div>
@@ -536,7 +540,7 @@ function render() {
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.s === screen));
   document.body.classList.toggle('game', screen === 'today' || screen === 'arm'); document.body.classList.toggle('hard', screen === 'today' && curTier >= 2); $('#banner').style.display = 'none';
   const sc = screen === 'today' ? [0, 1, 3, 4][curTier] : 2; $$('#world .sc').forEach(e => e.classList.toggle('on', +e.dataset.i === sc));
-  const hs = todayState(); if (hs !== hubSt) { hubSt = hs; $('#hub').innerHTML = G.nemesis(hs); } $('#hub').classList.toggle('sleep', screen !== 'today');
+  if (hubSt !== 1) { hubSt = 1; $('#hub').innerHTML = G.gem(); } $('#hub').classList.toggle('sleep', screen !== 'today');
   window.scrollTo(0, sy);
 }
 document.addEventListener('click', e => {

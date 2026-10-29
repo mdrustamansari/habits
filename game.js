@@ -123,28 +123,23 @@ const prince = id => `<img class="pr" src="art/prince-${String(artOf(id)).padSta
 function hero(level, eq) { return prince((eq && eq.skin) || 'p23'); }
 const thumb = (it, sz) => it.art ? `<span class="bust" style="width:${sz}px;height:${sz}px">${prince(it.id)}</span>` : sprite(it.sp, sz);
 
-/* ---- the Nemesis: a smooth creature. state 0 raging, 1 weakened, 2 defeated ---- */
-let nid = 0;
-function nemesis(state, full) {
-  const i = 'n' + (nid++), s = state || 0, sc = s === 0 ? 1 : s === 1 ? 0.86 : 0.74;
-  const eyes = s === 2
-    ? '<path d="M62 84l18 18M80 84L62 102M120 84l18 18M138 84l-18 18" stroke="#2a0f2a" stroke-width="6" stroke-linecap="round"/>'
-    : `<path d="M58 88q22-18 42 4q-6 16-24 16q-16 0-18-20z" fill="url(#${i}e)"/><path d="M142 88q-22-18-42 4q6 16 24 16q16 0 18-20z" fill="url(#${i}e)"/><ellipse cx="78" cy="96" rx="3.4" ry="9" fill="#2a0f2a"/><ellipse cx="122" cy="96" rx="3.4" ry="9" fill="#2a0f2a"/>${s === 1 ? '<path d="M60 76q18-8 36 4M104 80q18-12 36-4" stroke="#8a2240" stroke-width="5" fill="none" stroke-linecap="round"/>' : '<path d="M54 76l46 14M146 76l-46 14" stroke="#4a0e28" stroke-width="8" stroke-linecap="round"/>'}`;
-  const mouth = s === 2
-    ? '<path d="M78 138q22 10 44 0" stroke="#2a0f2a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M112 140q6 16 14 10" fill="#ff7a9a"/>'
-    : s === 1 ? '<path d="M76 140q24-8 48 0" stroke="#2a0f2a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M146 66q6 10 0 14q-6-4 0-14z" fill="#8be3ff"/>'
-    : '<path d="M62 132q38 32 76 0q-10 8-38 8t-38-8z" fill="#2a0f2a"/><path d="M70 135l7 15 7-12M86 140l7 17 7-17M106 140l7 15 7-17M122 138l7 12 5-14" fill="#fff" stroke="#2a0f2a" stroke-width="1.2" stroke-linejoin="round"/>';
-  const body = s === 2 ? ['#c9b8c9', '#8d7490', '#4c3a58'] : ['#ff9a6a', '#e0463f', '#7a1d3a'];
-  const gem = s === 2 ? ['#d8caf5', '#8d7bc0', '#4a3a72'] : ['#ffb0a0', '#e0183f', '#6e0a2a'];
-  const crystal = (x, y, k, r) => `<g transform="translate(${x} ${y}) rotate(${r}) scale(${k})"><path d="M0-22L11-4 0 22-11-4z" fill="url(#${i}c)" stroke="#4a0a20" stroke-width="2.2" stroke-linejoin="round"/><path d="M0-22L11-4 0-1z" fill="#fff" opacity=".38"/><path d="M0-1L11-4 0 22z" fill="#500" opacity=".28"/></g>`;
-  const fist = sg => `<g transform="translate(${sg > 0 ? 176 : 24} 140) scale(${sg} 1)"><path d="M-22-6q2-22 24-19q22 3 19 24q-3 19-24 17q-19-2-19-22z" fill="#4b4358" stroke="#1c1426" stroke-width="3"/><path d="M-17-14l-11-12 15 5zM-3-23l-3-15 11 11zM11-14l9-11 1 15z" fill="#9a98b0" stroke="#1c1426" stroke-width="2" stroke-linejoin="round"/><circle cx="2" cy="-2" r="8" fill="url(#${i}c)" stroke="#1c1426" stroke-width="2"/></g>`;
-  const armour = full ? `${crystal(24, 66, .9, -14)}${crystal(176, 60, 1, 12)}${crystal(10, 112, .6, -24)}${crystal(192, 112, .7, 20)}${fist(1)}${fist(-1)}` : '';
-  const plate = full ? '<path d="M70 52l-16-8 12 16zM130 52l16-8-12 16z" fill="#9a98b0" stroke="#1c1426" stroke-width="2" stroke-linejoin="round"/><path d="M100 18L126 50 100 80 74 50z" fill="#4b4358" stroke="#1c1426" stroke-width="3" stroke-linejoin="round"/><path d="M100 30L116 50 100 68 84 50z" fill="url(#' + i + 'c)" stroke="#1c1426" stroke-width="2"/><path d="M100 30L116 50 100 52z" fill="#fff" opacity=".35"/>' : '';
-  const horn = '<path d="M52 62Q24 34 42 6q10 24 38 38z" fill="url(#' + i + 'g)" stroke="#6a2a10" stroke-width="3" stroke-linejoin="round"/><path d="M148 62Q176 34 158 6q-10 24-38 38z" fill="url(#' + i + 'g)" stroke="#6a2a10" stroke-width="3" stroke-linejoin="round"/>' + (full ? '<path d="M46 46q6-4 14-4M40 32q8-2 14 2M154 46q-6-4-14-4M160 32q-8-2-14 2" stroke="#9a5a14" stroke-width="2.4" fill="none" stroke-linecap="round"/>' : '');
-  return `<svg class="nem" viewBox="${full ? '-6 -6 212 212' : '0 0 200 200'}" aria-hidden="true"><defs><radialGradient id="${i}b" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="${body[0]}"/><stop offset=".55" stop-color="${body[1]}"/><stop offset="1" stop-color="${body[2]}"/></radialGradient><radialGradient id="${i}h" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity=".5"/><stop offset="1" stop-color="${s === 2 ? '#a58bff' : '#ff4a7a'}" stop-opacity="0"/></radialGradient><linearGradient id="${i}e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6a8"/><stop offset="1" stop-color="#ffb32a"/></linearGradient><linearGradient id="${i}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset=".6" stop-color="#f2a62e"/><stop offset="1" stop-color="#b8661a"/></linearGradient><linearGradient id="${i}c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${gem[0]}"/><stop offset=".5" stop-color="${gem[1]}"/><stop offset="1" stop-color="${gem[2]}"/></linearGradient></defs>
-  <g transform="translate(100 108) scale(${sc}) translate(-100 -108)${s === 2 ? ' rotate(-8 100 120)' : ''}"><circle cx="100" cy="106" r="98" fill="url(#${i}h)"/>${armour}${horn}
-  <circle cx="100" cy="112" r="72" fill="url(#${i}b)" stroke="#4a1030" stroke-width="4"/><ellipse cx="76" cy="70" rx="24" ry="12" fill="#fff" opacity=".22" transform="rotate(-24 76 70)"/>${plate}<g class="ey">${eyes}</g>${mouth}</g></svg>`;
+/* ---- the Nemesis: the green one-eyed monster, a sprite atlas (art/mon-green.webp, 5 x 4 cells) ----
+   frames: 0 normal 1 calm 2 angry 3 sneering 4 astonished 5 happy 6 sad 7-10 idle 11-13 hurt 14 dizzy 15-17 down 18 ghost */
+const MON = { normal: 0, calm: 1, angry: 2, sneer: 3, shock: 4, happy: 5, sad: 6, dizzy: 14 };
+const TIERF = [1, 0, 2, 3], EYE = { 0: 132, 1: 148, 2: 146, 3: 140, 6: 142 };
+function nemesis(state, full, o) {
+  o = o || {}; const t = o.tier == null ? 1 : o.tier; let f;
+  if (o.sleep) f = MON.calm;
+  else if (o.fx === 'y') f = MON.happy;
+  else if (state === 2) f = o.hub ? MON.normal : MON.dizzy;
+  else if (state === 1) f = MON.sad;
+  else f = TIERF[t];
+  const cls = 'nem mon' + (t === 3 ? ' v-red' : t === 2 ? ' v-amber' : '') + (o.fx === 'd' ? ' hurt' : (!o.hub && !o.sleep && state === 0 && t === 1 && !o.fx ? ' idle' : ''));
+  return `<span class="${cls}" style="--c:${f % 5};--r:${Math.floor(f / 5)};--ey:${EYE[f] || 138}" aria-hidden="true"><i></i></span>`;
 }
+
+/* ---- the centre tab: a gold hexagon with a green rune gem ---- */
+const gem = () => `<svg class="gem" viewBox="0 0 96 96" aria-hidden="true"><defs><linearGradient id="gmg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff0a8"/><stop offset=".5" stop-color="#e2a836"/><stop offset="1" stop-color="#8a5a14"/></linearGradient><radialGradient id="gmc" cx=".4" cy=".3" r=".9"><stop offset="0" stop-color="#e9ff9a"/><stop offset=".45" stop-color="#7fd62a"/><stop offset="1" stop-color="#1f5a14"/></radialGradient><radialGradient id="gmd" cx=".5" cy=".4" r=".7"><stop offset="0" stop-color="#1d2a22"/><stop offset="1" stop-color="#060a08"/></radialGradient></defs><polygon points="48,3 90,26 90,70 48,93 6,70 6,26" fill="url(#gmg)" stroke="#3a2306" stroke-width="2.5" stroke-linejoin="round"/><polygon points="48,10 84,30 84,66 48,86 12,66 12,30" fill="url(#gmd)" stroke="#6a4310" stroke-width="2"/><polygon points="48,20 74,35 74,61 48,76 22,61 22,35" fill="none" stroke="#7fd62a" stroke-width="1.5" opacity=".6"/><polygon points="48,28 66,48 48,68 30,48" fill="url(#gmc)" stroke="#173d0e" stroke-width="2.2" stroke-linejoin="round"/><polygon points="48,28 66,48 48,48" fill="#fff" opacity=".35"/><polygon points="48,48 66,48 48,68" fill="#000" opacity=".22"/></svg>`;
 
 /* ---- the world behind The Nemesis: moonlit citadel, drawn once, never animated ---- */
 function scene() {
@@ -171,5 +166,5 @@ function scene() {
 }
 
 const coin = sz => `<svg class="coin" width="${sz}" height="${sz}" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#ffcf40" stroke="#8a5208" stroke-width="1.5"/><circle cx="10" cy="10" r="6.4" fill="none" stroke="#fff0a8" stroke-width="1.2"/><path d="M10 6l3.4 4L10 14 6.6 10z" fill="#c98a12" stroke="#8a5208" stroke-width=".8" stroke-linejoin="round"/><path d="M4.6 7.4A6.2 6.2 0 0 1 8 4.2" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".8"/></svg>`;
-root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, prince, thumb, nemesis, scene, bodyLook };
+root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, prince, thumb, nemesis, gem, scene, bodyLook };
 })(window);

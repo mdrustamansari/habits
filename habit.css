@@ -380,3 +380,41 @@ img.px { image-rendering: pixelated; display: block; }
 .g-strip { margin-top: 8px; }
 .g-strip { background: rgba(12, 5, 20, .9); }
 .g-hi, .g-hi .g-xl, .g-hi .g-sub, .g-prog { text-shadow: 0 1px 5px #000, 0 0 10px rgba(0, 0, 0, .8); } .g-ttl { text-shadow: none; }
+
+/* ---- v1.6: the green monster sprite ---- */
+.mon { display: block; position: relative; width: 100%; aspect-ratio: 1; }
+.mon i { position: absolute; inset: 0; background: url(art/mon-green.webp) no-repeat; background-size: 500% 400%; background-position: calc(var(--c) * 25%) calc(var(--r) * 33.3333%); }
+.g-cre { inset: 6% 8% 22% 8%; }
+.g-cre .mon { height: 100%; width: auto; margin: 0 auto; filter: drop-shadow(0 0 16px rgba(150, 235, 60, .4)) drop-shadow(0 6px 6px rgba(0, 0, 0, .5)); transform-origin: 50% 85%; animation: breathe 4.2s ease-in-out infinite; }
+.g-arena.hard .g-cre .mon { animation: shake .45s linear infinite; }
+.g-arena.fx-d .g-cre .mon { animation: flinch .6s ease-out; }
+.g-arena.fx-y .g-cre .mon { animation: grin .7s ease-out; }
+.g-cre .mon.idle i { animation: monidle 1.6s step-end infinite; }
+.g-cre .mon.hurt i { animation: monhurt .7s step-end 1; }
+@keyframes monidle { 0% { background-position: 50% 33.3333%; } 25% { background-position: 75% 33.3333%; } 50% { background-position: 100% 33.3333%; } 75% { background-position: 0 66.6667%; } }
+@keyframes monhurt { 0% { background-position: 25% 66.6667%; } 35% { background-position: 50% 66.6667%; } 70% { background-position: 75% 66.6667%; } }
+.hub .nem.mon { width: 64px; height: 64px; margin: 8px auto 0; overflow: hidden; border-radius: 50%; -webkit-mask-image: radial-gradient(circle, #000 58%, transparent 72%); mask-image: radial-gradient(circle, #000 58%, transparent 72%); transition: filter .4s, transform .3s; filter: none; animation: hubfloat 3.6s ease-in-out infinite; }
+.hub .nem.mon i { inset: auto; width: 215px; height: 215px; left: -75.5px; top: calc(32px - var(--ey) * .84px); }
+.hub.active .nem.mon { transform: scale(1.08); filter: brightness(1.12); }
+.hub.sleep .nem.mon { filter: saturate(.55) brightness(.8); animation: none; }
+@media (prefers-reduced-motion: reduce) { .g-cre .mon, .g-cre .mon i, .hub .nem.mon { animation: none !important; } }
+.mon.v-amber i { background-image: url(art/mon-amber.webp); }
+.mon.v-red i { background-image: url(art/mon-red.webp); }
+.g-arena.hard .g-cre .mon.v-red { filter: drop-shadow(0 0 18px rgba(255, 60, 50, .55)) drop-shadow(0 6px 6px rgba(0, 0, 0, .5)); }
+
+/* ---- v1.8: centre tab = rune gem; the three action buttons = molten gold outlines, transparent inside ---- */
+.hub svg.gem { width: 92px; height: 92px; margin-top: -4px; stroke: none; fill: initial; overflow: visible; transition: filter .3s, transform .3s; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .6)) drop-shadow(0 0 12px rgba(140, 230, 50, .45)); animation: hubfloat 3.6s ease-in-out infinite; }
+.nav-bar button.nav-item.hub svg.gem { width: 92px; height: 92px; stroke: none; fill: initial; }
+.hub.active svg.gem { transform: scale(1.06); filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .6)) drop-shadow(0 0 18px rgba(170, 255, 80, .8)); }
+.hub.sleep svg.gem { animation: none; }
+.hx .hx-b { background: none !important; clip-path: none !important; padding: 0 !important; position: relative; }
+.hx .hx-f { clip-path: none !important; background: none !important; position: relative; padding: 14% 10% 12% !important; }
+.hx .frm { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.hx { filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .55)) !important; }
+.hx b { text-shadow: 0 2px 3px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .7); }
+.hx small { text-shadow: 0 2px 3px rgba(0, 0, 0, .9), 0 0 8px var(--gl); color: var(--tx); }
+.hx.d { --gem: #4dff9a; --gl: rgba(60, 230, 150, .9); --tx: #9bffc6; }
+.hx.y { --gem: #ff5a68; --gl: rgba(255, 80, 90, .9); --tx: #ffa0a8; }
+.hx.q { --gem: #5a8aff; --gl: rgba(70, 120, 255, .9); --tx: #b4c8ff; }
+.hx svg:not(.frm) { filter: drop-shadow(0 0 6px var(--gem)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8)); }
+.hx:active .hx-b { transform: translateY(2px) scale(.98); }
