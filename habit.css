@@ -398,9 +398,6 @@ img.px { image-rendering: pixelated; display: block; }
 .hub.active .nem.mon { transform: scale(1.08); filter: brightness(1.12); }
 .hub.sleep .nem.mon { filter: saturate(.55) brightness(.8); animation: none; }
 @media (prefers-reduced-motion: reduce) { .g-cre .mon, .g-cre .mon i, .hub .nem.mon { animation: none !important; } }
-.mon.v-amber i { background-image: url(art/mon-amber.webp); }
-.mon.v-red i { background-image: url(art/mon-red.webp); }
-.g-arena.hard .g-cre .mon.v-red { filter: drop-shadow(0 0 18px rgba(255, 60, 50, .55)) drop-shadow(0 6px 6px rgba(0, 0, 0, .5)); }
 
 /* ---- v1.8: centre tab = rune gem; the three action buttons = molten gold outlines, transparent inside ---- */
 .hub svg.gem { width: 92px; height: 92px; margin-top: -4px; stroke: none; fill: initial; overflow: visible; transition: filter .3s, transform .3s; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .6)) drop-shadow(0 0 12px rgba(140, 230, 50, .45)); animation: hubfloat 3.6s ease-in-out infinite; }
@@ -418,3 +415,20 @@ img.px { image-rendering: pixelated; display: block; }
 .hx.q { --gem: #5a8aff; --gl: rgba(70, 120, 255, .9); --tx: #b4c8ff; }
 .hx svg:not(.frm) { filter: drop-shadow(0 0 6px var(--gem)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8)); }
 .hx:active .hx-b { transform: translateY(2px) scale(.98); }
+
+/* ---- v1.9: the paper-doll prince (layers in art/doll/, one 440 x 700 canvas) ---- */
+.doll { position: relative; display: block; aspect-ratio: 440 / 700; }
+.doll img, .pthumb img { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; user-select: none; }
+.pthumb { position: relative; display: block; overflow: hidden; }
+.pthumb > span img { width: 100%; height: 100%; }
+.bust .doll { position: absolute; left: 0; top: 0; width: 185%; transform: translate(-22.95%, -4.29%); }
+.g-av .doll { width: 190%; transform: translate(-23.8%, -3.2%); filter: drop-shadow(0 0 6px rgba(255, 220, 140, .35)); }
+.g-slot .bust .doll { width: 185%; transform: translate(-22.95%, -3%); }
+.g-herobox { width: 150px; height: 232px; padding: 4px; align-items: center; }
+.g-herobox .doll { height: 100%; width: auto; margin: 0 auto; filter: drop-shadow(0 0 10px rgba(255, 220, 140, .45)); }
+.g-herobox .pr { width: 100%; height: auto; margin: 0; }
+.lu-hero .doll { height: 100%; width: auto; margin: 0 auto; }
+.g-setbar { position: relative; height: 26px; margin: 0 2px 10px; border-radius: 13px; border: 2px solid rgba(217, 180, 90, .8); background: rgba(5, 6, 18, .55); overflow: hidden; }
+.g-setbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #ffb02a, #ffe27a); transition: width .6s; }
+.g-setbar span { position: relative; display: block; text-align: center; font-size: .72rem; line-height: 22px; font-weight: 600; color: #fff; text-shadow: 0 0 3px #000, 0 1px 3px #000, 0 0 6px #000; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-art .pthumb, .g-art .bust { margin: 0 auto; }

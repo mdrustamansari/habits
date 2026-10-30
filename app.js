@@ -2,7 +2,7 @@
    Look: shared style files (style.css, flagship.css, buttons.css, btnlook.js). Words follow DESIGN-LANGUAGE.md section 10. */
 (function () {
 'use strict';
-const KEY = 'ht_v1', VERSION = '1.8';
+const KEY = 'ht_v1', VERSION = '1.9';
 const G = window.HTGame;
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -13,7 +13,7 @@ function defaults() {
   return { v: 2, name: '', follow: true, look: 'flagship', accent: 'sapphire', flFont: 'system', glow: false, pin: null, salt: Math.random().toString(36).slice(2), lockAfter: 15,
     base: 200, goal: 2000, target: 120, learn: true, logs: [], ul: [], ideas: [], done: false, sound: true, vib: true, lastBackup: 0, btnAccent: 9, btnBlack: 0,
     ucats: [{ id: 'vid', n: 'Videos', w: 1 }, { id: 'web', n: 'Browsing', w: 1 }, { id: 'pic', n: 'Pictures', w: 2 }, { id: 'soc', n: 'Social media', w: 1 }, { id: 'oth', n: 'Other', w: 1 }],
-    gear: { own: ['p23'], eq: { skin: 'p23' } }, buys: [], dismiss: {} };
+    gear: { own: [], eq: { parts: [] } }, buys: [], dismiss: {} };
 }
 function migrate(o) {
   if (!o.v || o.v < 2) {   // 1.0 and 1.1 kept small points; 1.2 keeps Nemesis Cash in hundreds
@@ -23,7 +23,7 @@ function migrate(o) {
   }
   if (o.sound === undefined) o.sound = true; if (o.vib === undefined) o.vib = true;
   const ids = new Set(G.CATALOG.map(c => c.id));   // 1.4 replaced the old drawn gear with painted outfits: old purchases are refunded
-  o.buys = (o.buys || []).filter(b => ids.has(b.item)); if (o.gear) { o.gear.own = (o.gear.own || []).filter(i => ids.has(i)); o.gear.eq = o.gear.eq || {}; Object.keys(o.gear.eq).forEach(k => { if (!ids.has(o.gear.eq[k])) delete o.gear.eq[k]; }); if (o.gear.own.indexOf('p23') < 0) o.gear.own.unshift('p23'); if (!o.gear.eq.skin) o.gear.eq.skin = 'p23'; }
+  o.buys = (o.buys || []).filter(b => ids.has(b.item)); if (o.gear) { o.gear.own = (o.gear.own || []).filter(i => ids.has(i)); o.gear.eq = o.gear.eq || {}; Object.keys(o.gear.eq).forEach(k => { if (k !== 'parts' && !ids.has(o.gear.eq[k])) delete o.gear.eq[k]; }); o.gear.own = o.gear.own.filter(i => i !== 'p23'); o.gear.eq.parts = (o.gear.eq.parts || []).filter(i => ids.has(i) && o.gear.own.indexOf(i) >= 0); if (o.gear.eq.skin === 'p23') delete o.gear.eq.skin; }
   const d = defaults(); ['ucats', 'gear', 'buys', 'dismiss'].forEach(k => { if (!o[k]) o[k] = d[k]; }); if (!o.gear.own) o.gear = d.gear;
   return o;
 }
@@ -328,9 +328,10 @@ const SOLID = {
   swirl: '<path d="M12 4a8 8 0 108 8" fill="none" stroke="#5ae0ff" stroke-width="2.200" stroke-linecap="round"/><path d="M12 8a4 4 0 104 4" fill="none" stroke="#5ae0ff" stroke-width="2.200" stroke-linecap="round"/>'
 };
 const solid = n => `<svg class="sld" viewBox="0 0 24 24" aria-hidden="true">${SOLID[n]}</svg>`;
+function lookName() { const n = S.gear.eq.skin ? G.CATALOG.find(c => c.id === S.gear.eq.skin).name : G.setDone(S.gear.own, S.gear.eq.parts) ? 'Golden Prince' : (S.gear.eq.parts || []).length ? 'Royal outfit' : 'Plain clothes'; return n; }
 function slotRow() {
-  const skin = G.CATALOG.find(c => c.id === (S.gear.eq.skin || 'p23')), perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
-  const cells = [`<span class="g-slot" title="${esc(skin.name)}">${G.thumb(skin, 30)}</span>`];
+  const perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
+  const cells = [`<span class="g-slot" title="${esc(lookName())}">${G.look(S.gear.eq, 30)}</span>`];
   perks.slice(0, 3).forEach(p => cells.push(`<span class="g-slot" title="${esc(p.name)}">${G.sprite(p.sp, 22)}</span>`));
   while (cells.length < 4) cells.push('<span class="g-slot e">+</span>');
   return cells.join('');
@@ -384,32 +385,43 @@ function levelUp(a, b) {
 function todayState() { const o = stats().I[todayK()], net = o ? o.c : 0; return net >= S.goal ? 2 : net >= S.goal / 2 ? 1 : 0; }
 
 /* ---------- Armoury ---------- */
+const wornParts = () => S.gear.eq.parts || (S.gear.eq.parts = []);
+const setOk = () => G.setDone(S.gear.own, wornParts());
 function buyItem(id) {
   const it = G.CATALOG.find(c => c.id === id), st = stats(); if (!it || has(id)) return;
+  if (it.slot === 'skin' && !setOk()) { say('Buy and wear the whole royal outfit first.'); return; }
   if (st.lvl < it.level) { say('You need level ' + it.level + ' for this.'); return; }
   if (st.bal < it.price) { say('You need {c} ' + fmt(it.price - st.bal) + ' more.'); return; }
-  const b = { id: 'b' + Date.now(), t: Date.now(), item: id, cost: it.price }, had = S.gear.eq[it.slot];
-  S.buys.push(b); S.gear.own.push(id); if (it.slot === 'skin') S.gear.eq.skin = id; save(); tone(740, .3); setTimeout(() => tone(990, .45), 140); vib([20, 40, 20]); render();
-  say(it.name + (it.slot === 'skin' ? ' is yours, and you are wearing it.' : ' is yours.'), () => { S.buys = S.buys.filter(x => x.id !== b.id); S.gear.own = S.gear.own.filter(x => x !== id); if (S.gear.eq[it.slot] === id) { if (had) S.gear.eq[it.slot] = had; else delete S.gear.eq[it.slot]; } save(); });
+  const b = { id: 'b' + Date.now(), t: Date.now(), item: id, cost: it.price }, had = S.gear.eq.skin;
+  S.buys.push(b); S.gear.own.push(id); if (it.slot === 'skin') S.gear.eq.skin = id; if (it.slot === 'part') wornParts().push(id); save(); tone(740, .3); setTimeout(() => tone(990, .45), 140); vib([20, 40, 20]); render();
+  const done = it.slot === 'part' && setOk();
+  say(done ? 'The royal outfit is complete. Premium outfits are open.' : it.name + (it.slot === 'perk' ? ' is yours.' : ' is yours, and you are wearing it.'), () => { S.buys = S.buys.filter(x => x.id !== b.id); S.gear.own = S.gear.own.filter(x => x !== id); S.gear.eq.parts = wornParts().filter(x => x !== id); if (it.slot === 'skin') { if (had) S.gear.eq.skin = had; else delete S.gear.eq.skin; } save(); });
 }
 function equipItem(id) {
+  if (id === 'doll') { delete S.gear.eq.skin; save(); tone(620, .2); vib(10); render(); return; }
   const it = G.CATALOG.find(c => c.id === id); if (!it || !has(id) || it.slot !== 'skin') return;
   S.gear.eq.skin = id; save(); tone(620, .2); vib(10); render();
 }
+function togglePart(id) {
+  if (!has(id)) return; const w = wornParts(), i = w.indexOf(id); if (i >= 0) w.splice(i, 1); else w.push(id);
+  save(); tone(560, .15); vib(8); render();
+}
 function itemCard(it, st) {
-  const own = has(it.id), worn = S.gear.eq.skin === it.id, locked = st.lvl < it.level, afford = st.bal >= it.price; let act;
-  if (own) act = it.slot === 'perk' ? '<span class="g-own">Active</span>' : worn ? '<span class="g-own">Wearing</span>' : `<button class="g-btn p sm" data-eq="${it.id}">Wear</button>`;
+  const own = has(it.id), part = it.slot === 'part', worn = part ? wornParts().indexOf(it.id) >= 0 : S.gear.eq.skin === it.id, locked = st.lvl < it.level, afford = st.bal >= it.price, gated = it.slot === 'skin' && !own && !setOk(); let act;
+  if (own) act = it.slot === 'perk' ? '<span class="g-own">Active</span>' : part ? `<button class="g-btn ${worn ? '' : 'p '}sm" data-tg="${it.id}">${worn ? 'Take off' : 'Wear'}</button>` : worn ? '<span class="g-own">Wearing</span>' : `<button class="g-btn p sm" data-eq="${it.id}">Wear</button>`;
+  else if (gated) act = '<span class="g-lock">Finish the royal outfit</span>';
   else if (locked) act = `<span class="g-lock">Level ${it.level}</span>`;
   else act = `<button class="g-btn p sm${afford ? '' : ' off'}" data-buy="${it.id}">Buy · ${coin(14)} ${fmt(it.price)}</button>`;
-  return `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked ? ' locked' : ''}"><div class="g-art">${G.thumb(it, it.art ? 84 : 52)}</div><div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk · ' + esc(it.perk) : 'Outfit'}</div>${act}</div>`;
+  return `<div class="g-item ${it.rar}${own ? ' own' : ''}${locked || gated ? ' locked' : ''}"><div class="g-art">${G.thumb(it, it.art ? 84 : 56)}</div><div class="g-in">${esc(it.name)}</div><div class="g-is">${it.slot === 'perk' ? 'Perk · ' + esc(it.perk) : part ? esc(it.perk) : 'Outfit'}</div>${act}</div>`;
 }
 function viewArmoury() {
-  const st = stats(), eq = S.gear.eq, skin = G.CATALOG.find(c => c.id === (eq.skin || 'p23')), perks = S.gear.own.map(i => G.CATALOG.find(c => c.id === i)).filter(c => c && c.slot === 'perk');
+  const st = stats(), eq = S.gear.eq, n = G.PARTS.filter(x => has(x.id)).length, ok = setOk();
   const rate = st.D + st.Y ? st.D / (st.D + st.Y) : 0;
-  let out = `<div class="g-top"><div class="g-title">Armoury</div><div class="g-cash static">${coin(20)}<b>${fmt(st.bal)}</b></div></div><div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-sub" style="margin-top:8px">Wearing <b>${esc(skin.name)}</b></div><div class="g-sub" style="margin-top:10px">Your level follows the coins you earn, never the coins you spend.</div></div></div>`;
+  let out = `<div class="g-top"><div class="g-title">Armoury</div><div class="g-cash static">${coin(20)}<b>${fmt(st.bal)}</b></div></div><div class="g-card g-panel"><div class="g-herobox">${G.hero(st.lvl, eq)}</div><div class="g-hinfo"><div class="g-rank">${rankName(st.lvl)}</div><div class="g-sub">Level ${st.lvl} of 999</div><div class="g-sub" style="margin-top:8px">Wearing <b>${esc(lookName())}</b></div><div class="g-sub" style="margin-top:10px">Your level follows the coins you earn, never the coins you spend.</div></div></div>`;
   out += `<div class="g-gauges">${gauge(rate, 'Resolve', Math.round(rate * 100) + '%', '#4fe0a8')}${gauge(Math.min(1, st.streak / 30), 'Streak', st.streak + 'd', '#ffb35a')}${gauge(st.prog, 'Climb', Math.round(Math.max(0, Math.min(1, st.prog)) * 100) + '%', '#5ad7ff')}</div>`;
   const by = sl => G.CATALOG.filter(c => c.slot === sl).sort((a, b) => a.level - b.level);
-  out += `<div class="g-cap" style="margin:16px 4px 8px">Outfits</div><div class="g-shop">${by('skin').map(it => itemCard(it, st)).join('')}</div>`;
+  out += `<div class="g-cap" style="margin:16px 4px 6px">Royal outfit</div><div class="g-setbar"><i style="width:${n * 10}%"></i><span>${ok ? 'Complete. Premium outfits are open.' : n + ' of ' + G.PARTS.length + ' parts. Buy and wear all of them to open premium outfits.'}</span></div><div class="g-shop">${by('part').map(it => itemCard(it, st)).join('')}</div>`;
+  out += `<div class="g-cap" style="margin:16px 4px 8px">Premium outfits</div><div class="g-shop">${eq.skin ? `<div class="g-item own"><div class="g-art">${G.look({ parts: eq.parts }, 84)}</div><div class="g-in">${ok ? 'Golden Prince' : 'Your royal outfit'}</div><div class="g-is">Made from the parts you bought</div><button class="g-btn p sm" data-eq="doll">Wear</button></div>` : ''}${by('skin').map(it => itemCard(it, st)).join('')}</div>`;
   out += `<div class="g-cap" style="margin:16px 4px 8px">Perks</div><div class="g-shop" id="perks">${by('perk').map(it => itemCard(it, st)).join('')}</div>`;
   return out;
 }
@@ -549,7 +561,7 @@ document.addEventListener('click', e => {
   if (t.id === 'gsb' || c('#gsx')) return closeGS(); if (c('#ent')) return entriesSheet();
   if ((b = c('.nav-item'))) { tone(screen === b.dataset.s ? 400 : 520, .12, .05); vib(8); closeGS(); if (b.dataset.s === 'set' && screen === 'set') setPage = 'top'; screen = b.dataset.s; render(); window.scrollTo(0, 0); return; }
   if ((b = c('[data-to]'))) { screen = b.dataset.to; render(); window.scrollTo(0, 0); return; }
-  if ((b = c('[data-buy]'))) return buyItem(b.dataset.buy); if ((b = c('[data-eq]'))) return equipItem(b.dataset.eq);
+  if ((b = c('[data-buy]'))) return buyItem(b.dataset.buy); if ((b = c('[data-eq]'))) return equipItem(b.dataset.eq); if ((b = c('[data-tg]'))) return togglePart(b.dataset.tg);
   if ((b = c('[data-uc]'))) { ucSel = b.dataset.uc; return render(); }
   if ((b = c('[data-cw]'))) { const cc = S.ucats.find(x => x.id === b.dataset.cw); cc.w = Math.max(0.5, Math.min(3, cc.w + 0.5 * +b.dataset.d)); save(); return render(); }
   if ((b = c('[data-cdel]'))) { S.ucats = S.ucats.filter(x => x.id !== b.dataset.cdel); if (ucSel === b.dataset.cdel) ucSel = null; save(); return render(); }
