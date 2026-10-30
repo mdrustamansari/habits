@@ -432,3 +432,11 @@ img.px { image-rendering: pixelated; display: block; }
 .g-setbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #ffb02a, #ffe27a); transition: width .6s; }
 .g-setbar span { position: relative; display: block; text-align: center; font-size: .72rem; line-height: 22px; font-weight: 600; color: #fff; text-shadow: 0 0 3px #000, 0 1px 3px #000, 0 0 6px #000; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g-art .pthumb, .g-art .bust { margin: 0 auto; }
+
+/* v2.0: angry = quicker breathing, no shaking */
+@keyframes breathefast { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.g-arena.hard .g-cre .mon { animation: breathefast 1.5s ease-in-out infinite; }
+.g-arena.hard.fx-d .g-cre .mon { animation: flinch .6s ease-out; }
+.g-arena.hard.fx-y .g-cre .mon { animation: grin .7s ease-out; }
+.g-hint { margin: 0 4px 10px; font-size: .74rem; color: rgba(255, 255, 255, .72); text-shadow: 0 1px 3px #000; }
+.g-btn.sm:not(.p) { color: #1d1a33; text-shadow: none; font-weight: 700; }

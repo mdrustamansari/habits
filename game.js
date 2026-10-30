@@ -42,22 +42,23 @@ const PARTS = [   // [id, name, layers, level, price, crop box on the 440x700 ca
   ['sword', 'Sword and Scabbard', ['sword', 'scabbard'], 16, 6000, [230, 140, 350, 620], 'A blade for the brave'],
   ['cloak', 'Royal Cloak', ['cloak'], 20, 8000, [23, 258, 417, 530], 'A cloak that crowns the set']
 ].map(p => ({ id: p[0], name: p[1], slot: 'part', layers: p[2], level: p[3], price: p[4], crop: p[5], rar: p[3] >= 16 ? 'rare' : '', perk: p[6] }));
-const DOLL = ['cloak', 'sword', 'legs', 'shorts', 'trousers', 'boots', 'knee', 'arms', 'shirt', 'jacket', 'gloves', 'belt', 'straps', 'brooch', 'scabbard', 'collar', 'paul', 'head'];
-const DOLL_OF = {}; PARTS.forEach(p => p.layers.forEach(l => { DOLL_OF[l] = p.id; }));
-function dollLayers(worn) {   // which layers to draw for the parts being worn
-  const w = new Set(worn || []), hide = new Set();
-  if (w.has('coat')) { hide.add('shirt'); hide.add('arms'); } if (w.has('trousers')) hide.add('shorts'); if (w.has('boots')) hide.add('legs');
-  return DOLL.filter(l => !hide.has(l) && (!DOLL_OF[l] || w.has(DOLL_OF[l])));
+const UPS = [['sword2', 'sword', 'Jewelled Sword', ['sword2', 'scabbard'], 30, 12000, [264, 155, 418, 596], 'A blade with a blue jewel'], ['sword3', 'sword', 'Radiant Sword', ['sword3', 'scabbard'], 60, 30000, [263, 151, 443, 596], 'A glowing blade of light'], ['cloak2', 'cloak', 'Tasselled Cloak', ['cloak2'], 28, 10000, [43, 253, 396, 607], 'Gold tassels and a jewelled clasp'], ['cloak3', 'cloak', 'Crowned Fur Cloak', ['cloak3'], 55, 28000, [33, 236, 407, 654], 'A fur collar fit for a king'], ['paul2', 'paul', 'Tasselled Pauldrons', ['paul2'], 26, 8000, [107, 258, 332, 370], 'Shoulder guards with gold tassels'], ['paul3', 'paul', 'Fur Pauldrons', ['paul3'], 50, 22000, [97, 256, 342, 374], 'Fur-lined shoulder guards'], ['belt2', 'belt', 'Fleur Belt', ['belt2'], 24, 6000, [121, 398, 318, 466], 'A gold and white belt'], ['belt3', 'belt', 'Jewelled Sash', ['belt3'], 45, 18000, [107, 382, 334, 489], 'A belt with a sash and jewel'], ['boots2', 'boots', 'Gilded Boots', ['boots2'], 22, 7000, [109, 518, 300, 691], 'Boots with a white and gold cuff'], ['boots3', 'boots', 'Plated Boots', ['boots3'], 40, 16000, [115, 514, 305, 691], 'Boots with armoured plates'], ['gloves2', 'coat', 'Gold Gauntlets', ['jacket', 'gloves2'], 34, 14000, [103, 402, 332, 510], 'Armoured gauntlets'], ['knee2', 'knee', 'Fleur Greaves', ['knee2'], 32, 12000, [137, 528, 284, 625], 'Plated greaves']].map((u, i) => ({ id: u[0], base: u[1], name: u[2], slot: 'up', layers: u[3], level: u[4], price: u[5], crop: u[6], perk: u[7], tier: (i % 2) + 2, rar: u[4] >= 40 ? 'epic' : 'rare' }));
+const DOLL = ['cloak', 'cloak2', 'cloak3', 'sword', 'sword2', 'sword3', 'legs', 'shorts', 'trousers', 'boots', 'boots2', 'boots3', 'knee', 'knee2', 'arms', 'shirt', 'jacket', 'gloves', 'gloves2', 'belt', 'belt2', 'belt3', 'straps', 'brooch', 'scabbard', 'collar', 'paul', 'paul2', 'paul3', 'head'];
+function dollLayers(worn, up) {   // which layers to draw for the parts being worn (an upgrade swaps the layers of its base part)
+  const w = new Set(worn || []), on = new Set(['legs', 'shorts', 'arms', 'shirt', 'head']); up = up || {};
+  if (w.has('coat')) { on.delete('shirt'); on.delete('arms'); } if (w.has('trousers')) on.delete('shorts'); if (w.has('boots')) on.delete('legs');
+  PARTS.forEach(p => { if (!w.has(p.id)) return; const u = UPS.find(x => x.id === up[p.id]); (u ? u.layers : p.layers).forEach(l => on.add(l)); });
+  return DOLL.filter(l => on.has(l));
 }
 const layerImg = l => `<img src="art/doll/${l}.webp" alt="" draggable="false">`;
-const doll = worn => `<span class="doll">${dollLayers(worn).map(layerImg).join('')}</span>`;
-const partThumb = (it, sz) => { const c = it.crop, w = c[2] - c[0], h = c[3] - c[1], s = Math.min(sz / w, sz / h); return `<span class="pthumb" style="width:${sz}px;height:${sz}px"><span style="position:absolute;width:${(440 * s).toFixed(1)}px;height:${(700 * s).toFixed(1)}px;left:${((sz - w * s) / 2 - c[0] * s).toFixed(1)}px;top:${((sz - h * s) / 2 - c[1] * s).toFixed(1)}px">${it.layers.map(layerImg).join('')}</span></span>`; };
+const doll = (worn, up) => `<span class="doll">${dollLayers(worn, up).map(layerImg).join('')}</span>`;
+const partThumb = (it, sz) => { const c = it.crop, w = c[2] - c[0], h = c[3] - c[1], s = Math.min(sz / w, sz / h); return `<span class="pthumb" style="width:${sz}px;height:${sz}px"><span style="position:absolute;width:${(440 * s).toFixed(1)}px;height:${(700 * s).toFixed(1)}px;left:${((sz - w * s) / 2 - c[0] * s).toFixed(1)}px;top:${((sz - h * s) / 2 - c[1] * s).toFixed(1)}px">${it.layers.filter(l => it.slot !== 'up' || l !== 'jacket').map(layerImg).join('')}</span></span>`; };
 const setDone = (own, worn) => PARTS.every(p => own.indexOf(p.id) >= 0 && (worn || []).indexOf(p.id) >= 0);
 const CATALOG = [
   { id: 'potion', name: 'Calm Potion', slot: 'perk', sp: 'potion', price: 1200, level: 3, rar: '', perk: 'Urge Rescue pays 100 extra.' },
   { id: 'weights', name: 'Strong Body', slot: 'perk', sp: 'weights', price: 3600, level: 12, rar: '', perk: 'Ducked pays 100 more in hard times.' },
   { id: 'heart', name: 'Heart Vigour', slot: 'perk', sp: 'heart', price: 8000, level: 25, rar: 'epic', perk: 'Every Yielded costs 100 less (never below 100).' },
-].concat(PARTS).concat(OUTFITS.map(o => ({ id: 'p' + String(o[0]).padStart(2, '0'), name: o[1], slot: 'skin', art: o[0], price: o[3], level: o[2], rar: o[4] })));
+].concat(PARTS).concat(UPS).concat(OUTFITS.map(o => ({ id: 'p' + String(o[0]).padStart(2, '0'), name: o[1], slot: 'skin', art: o[0], price: o[3], level: o[2], rar: o[4] })));
 const SLOTS = { skin: 'Outfit', part: 'Royal part', head: 'Head', rhand: 'Right hand', lhand: 'Left hand', body: 'Body', cloak: 'Cloak', feet: 'Feet', neck: 'Neck', aura: 'Halo', perk: 'Perk' };
 
 /* ---- pixel helpers ---- */
@@ -143,9 +144,9 @@ function heroOld(level, eq, size) {
 /* ---- the prince: painted pixel art, one image per outfit (art/prince-NN.webp) ---- */
 const artOf = id => { const it = CATALOG.find(c => c.id === id); return it ? it.art : 23; };
 const prince = id => `<img class="pr" src="art/prince-${String(artOf(id)).padStart(2, '0')}.webp" alt="" draggable="false">`;
-function hero(level, eq) { return eq && eq.skin ? prince(eq.skin) : doll(eq && eq.parts); }
+function hero(level, eq) { return eq && eq.skin ? prince(eq.skin) : doll(eq && eq.parts, eq && eq.up); }
 const look = (eq, sz) => `<span class="bust" style="width:${sz}px;height:${sz}px">${hero(0, eq)}</span>`;
-const thumb = (it, sz) => it.layers ? partThumb(it, sz) : it.art ? `<span class="bust" style="width:${sz}px;height:${sz}px">${prince(it.id)}</span>` : sprite(it.sp, sz);
+const thumb = (it, sz) => it.crop ? partThumb(it, sz) : it.art ? `<span class="bust" style="width:${sz}px;height:${sz}px">${prince(it.id)}</span>` : sprite(it.sp, sz);
 
 /* ---- the Nemesis: the green one-eyed monster, a sprite atlas (art/mon-green.webp, 5 x 4 cells) ----
    frames: 0 normal 1 calm 2 angry 3 sneering 4 astonished 5 happy 6 sad 7-10 idle 11-13 hurt 14 dizzy 15-17 down 18 ghost */
@@ -190,5 +191,5 @@ function scene() {
 }
 
 const coin = sz => `<svg class="coin" width="${sz}" height="${sz}" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#ffcf40" stroke="#8a5208" stroke-width="1.5"/><circle cx="10" cy="10" r="6.4" fill="none" stroke="#fff0a8" stroke-width="1.2"/><path d="M10 6l3.4 4L10 14 6.6 10z" fill="#c98a12" stroke="#8a5208" stroke-width=".8" stroke-linejoin="round"/><path d="M4.6 7.4A6.2 6.2 0 0 1 8 4.2" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".8"/></svg>`;
-root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, prince, thumb, look, doll, PARTS, setDone, nemesis, gem, scene, bodyLook };
+root.HTGame = { coin, PAL, SP, CATALOG, SLOTS, sprite, hero, prince, thumb, look, doll, PARTS, UPS, setDone, nemesis, gem, scene, bodyLook };
 })(window);
